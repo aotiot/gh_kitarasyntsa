@@ -1,0 +1,152 @@
+# Guitar Hero Syntetisaattori — Käyttöohje
+
+---
+
+## Käynnistys
+
+1. Paina virtakytkin päälle (kitaran sivussa tai strummilevyn vieressä)
+2. Laite käynnistyy noin sekunnissa — ei ääntä käynnistyessä
+3. Oletustila käynnistyessä: **Sointutila / Pop-setti / Normaali oktaavi / Clean**
+
+---
+
+## Äänen soittaminen
+
+Ääni syntyy aina kahdessa vaiheessa:
+
+1. **Paina fretti pohjaan** (tai useampi yhtä aikaa)
+2. **Strumaa** — ääni laukaistaan
+
+Strum toimii molempiin suuntiin. Jos strumataan ilman frettiä pohjassa, laite soittaa settin perussoinnun (G, E tai C) tai alimman nuotin (nuottitilassa).
+
+---
+
+## Nappien toiminnot
+
+| Nappi | Toiminto |
+|---|---|
+| Fretit (5 kpl) | Sointu tai nuotti tilan mukaan |
+| Strum ylös / alas | Laukaisee äänen |
+| **Start + Strum** | Nollaa kaikki asetukset |
+| Start yksin | Kierrätä sointusetti (sointutilassa) |
+| Select | Vaihda sointu ↔ nuotti -tila |
+| D-pad ylös | Oktaavi ylös |
+| D-pad alas | Oktaavi alas |
+| D-pad vasen | Edellinen efekti |
+| D-pad oikea | Seuraava efekti |
+| Whammy bar | Pitch bend — taivuttaa äänen korkeutta |
+| Demo 1 | Käynnistä / pysäytä Demo 1 |
+| Demo 2 | Käynnistä / pysäytä Demo 2 |
+| Demo 3 | Käynnistä / pysäytä Demo 3 |
+
+---
+
+## Sointutila
+
+Jokainen fretti soittaa kolmisoinnun. Strum laukaisee soinnun.
+
+### Sointusetit
+
+Sama nappi soittaa aina saman harmonisen funktion — vain perusääni vaihtuu setin mukaan. Vaihdetaan Start-napilla.
+
+| Nappi | Funktio | Pop (G) | Rock (E) | Balladi (C) |
+|---|---|---|---|---|
+| Strum (avoin) | I — kotisointu | G | E | C |
+| Vihreä | IV — neljäs | C | A | F |
+| Punainen | V — viides | D | B | G |
+| Keltainen | vi — molliseksti | Em | C#m | Am |
+| Sininen | ii — toinen molli | Am | F#m | Dm |
+| Oranssi | bVII — matala seitsemäs | F | D | Bb |
+
+**Pop** — Let It Be, Love Story, Someone Like You ja sadat muut.
+**Rock** — E-duurin blues-pohja, sopii rock- ja blues-musiikkiin.
+**Balladi** — C-duurin tunnelmallinen paketti, hitaat kappaleet.
+
+---
+
+## Nuottitila
+
+Soittaa yksittäisiä nuotteja C-duuriasteikosta. Sopii melodioiden soittamiseen.
+
+| Nappi | Nuotti |
+|---|---|
+| Strum (avoin) | C |
+| Vihreä | D |
+| Punainen | E |
+| Keltainen | F |
+| Sininen | G |
+| Oranssi | A |
+
+Oktaavia voi vaihtaa D-padilla myös nuottitilassa.
+
+---
+
+## Oktaavit
+
+| Oktaavi | Kuvaus | Soveltuu |
+|---|---|---|
+| Basso | Matala, tumma ääni | Bassolinjat |
+| Normaali | Perusoktaavi (oletus) | Yleisoitto |
+| Melodia | Korkea, kirkas ääni | Melodiat |
+
+D-pad ylös nostaa, D-pad alas laskee. Ei kierrä rajojen yli.
+
+---
+
+## Efektit
+
+Vaihdetaan D-pad vasen/oikea. Kierrää järjestyksessä.
+
+| # | Efekti | Kuvaus |
+|---|---|---|
+| 0 | Clean | Puhdas siniaalto |
+| 1 | Distortion | Säröytys — rock-kitaran klassikko |
+| 2 | Tremolo | Äänen voimakkuus heiluu (4 Hz) |
+| 3 | Vibrato | Äänen korkeus heiluu (6 Hz) |
+| 4 | Ring Mod | Metallinen, kellomaisesti sointuva ääni |
+
+---
+
+## Whammy bar
+
+Painamalla kampea alas äänen korkeus nousee portaattomasti (+5% max). Toimii kaikkien efektien kanssa samanaikaisesti.
+
+---
+
+## Demo-napit
+
+Kolme demo-nappia soittavat kappaleen automaattisesti. Demo soittaa eri kappaleet tilan mukaan.
+
+| Nappi | Sointutila | Nuottitila |
+|---|---|---|
+| Demo 1 | Let It Be — C G Am F | Ode to Joy |
+| Demo 2 | Smoke on the Water — E G A | Seven Nation Army |
+| Demo 3 | House of the Rising Sun — Am C D F | Twinkle Twinkle |
+
+**Käynnistys:** paina demo-nappia — kappale alkaa soida automaattisesti.
+**Pysäytys:** paina sama nappi uudelleen tai paina toinen demo-nappi.
+**Huomio:** muut napit eivät toimi demon aikana. Tila, setti ja oktaavi vaikuttavat demon ääneen.
+
+---
+
+## Lataus
+
+Laite ladataan USB-C -kaapelilla kitaran sivussa olevasta portista.
+
+- Latausaika: noin 3–4 tuntia
+- Käyttöaika: noin 17 tuntia
+- Laitetta voi käyttää latauksen aikana
+
+---
+
+## Vinkkejä soittamiseen
+
+**Pop-progressio G–C–D–Em:** Strum → Vihreä → Punainen → Keltainen. Satoja tunnettuja kappaleita.
+
+**Useampi fretti yhtä aikaa:** pidä useampi pohjassa ja strumaa — kaikki soivat samanaikaisesti.
+
+**Basso + Distortion:** matala oktaavi ja distortion kuulostaa sähköbassolta.
+
+**Melodia + Vibrato:** korkea oktaavi ja vibrato kuulostaa kitarasoololta.
+
+**Nollaus:** Start + Strum palauttaa kaiken oletuksiin.
