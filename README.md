@@ -104,7 +104,7 @@ IO25 → I2S WS   (Mozzi)
 IO26 → I2S BCK  (Mozzi)
 ```
 
-Tarkemmat kytkentätiedot: [KYTKENTA.md](KYTKENTA.md)
+Tarkemmat kytkentätiedot: [KYTKENTA.md]([KYTKENTA.md](https://github.com/aotiot/gh_kitarasyntsa/blob/main/kytkenta.md))
 
 ---
 
