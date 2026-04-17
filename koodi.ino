@@ -191,40 +191,89 @@ const char* CHORD_NAMES[NUM_SETS][NUM_FRETS] = {
 // =============================================================================
 //
 // SOINTUTILA:
-//   Demo 1 — Let It Be (Beatles):         C–G–Am–F  (Pop-setti)
-//   Demo 2 — Smoke on the Water (Purple): E–G–A     (Rock-setti)
+//   Demo 1 — Let It Be (Beatles): C–G–Am–F verse + chorus, ~32s
+//   Demo 2 — Smoke on the Water (Deep Purple): pääriffi + kehitys, ~36s
 //
 // NUOTTITILA:
-//   Demo 1 — Ode to Joy (Beethoven)
-//   Demo 2 — Seven Nation Army (The White Stripes)
+//   Demo 1 — Ode to Joy (Beethoven): kaksi kokonaista säkeistöä, ~33s
+//   Demo 2 — Seven Nation Army (White Stripes): pääriffi + bridge, ~31s
 //
 // Sointunumero: -1 = avoin sointu (strum), 0–4 = fretti-indeksi
+// Taajuus Hz: suoraan nuottitilassa
 
-// Demo 1 sointutila: Let It Be — C(0) G(avoin) Am(3) F(4)
-const int   D1_CHORDS[]  = { 0, -1, 3, 4,  0, -1, 3, 4 };
-const int   D1_CHORDS_N  = 8;
+// ---------------------------------------------------------------------------
+// Demo 1 sointutila: Let It Be (Beatles)
+// Rakenne: Verse × 2 + Chorus × 2 = 16 sointua × 600ms = ~32s (looppi)
+// Pop-setti: C=fretti0, G=avoin(-1), Am=fretti3, F=fretti4
+// ---------------------------------------------------------------------------
+const int D1_CHORDS[] = {
+   // Verse 1: C G Am F  C G F F
+    0, -1,  3,  4,   0, -1,  4,  4,
+   // Verse 2: C G Am F  C G F F
+    0, -1,  3,  4,   0, -1,  4,  4,
+   // Chorus: Am F C G  Am F G G
+    3,  4,  0, -1,   3,  4, -1, -1,
+   // Outro:  C G Am F  C G C C
+    0, -1,  3,  4,   0, -1,  0,  0,
+};
+const int D1_CHORDS_N = 32;
 
-// Demo 1 nuottitila: Ode to Joy
-const float D1_NOTES[]   = {
+// ---------------------------------------------------------------------------
+// Demo 1 nuottitila: Ode to Joy (Beethoven) — kaksi täyttä säkeistöä
+// 30 nuottia × (300ms + 80ms) = ~33.4s (looppi)
+// ---------------------------------------------------------------------------
+const float D1_NOTES[] = {
+   // Säkeistö 1
    329.63f, 329.63f, 349.23f, 392.00f,   // E4 E4 F4 G4
    392.00f, 349.23f, 329.63f, 293.66f,   // G4 F4 E4 D4
    261.63f, 261.63f, 293.66f, 329.63f,   // C4 C4 D4 E4
-   329.63f, 293.66f, 293.66f             // E4 D4 D4
+   329.63f, 293.66f, 293.66f,            // E4 D4 D4
+   // Säkeistö 2 (sama melodia, looppi tuntuu pidemmältä)
+   329.63f, 329.63f, 349.23f, 392.00f,   // E4 E4 F4 G4
+   392.00f, 349.23f, 329.63f, 293.66f,   // G4 F4 E4 D4
+   261.63f, 261.63f, 293.66f, 329.63f,   // C4 C4 D4 E4
+   329.63f, 293.66f, 329.63f, 293.66f,   // E4 D4 E4 D4 (variaatio)
+   261.63f, 261.63f,                     // C4 C4 (kadenssi)
 };
-const int   D1_NOTES_N   = 15;
+const int D1_NOTES_N = 32;
 
-// Demo 2 sointutila: Smoke on the Water — E(avoin) G(2) A(0)
-const int   D2_CHORDS[]  = { -1, 2, 0,  -1, 2, 3, 0,  -1, 2, 0 };
-const int   D2_CHORDS_N  = 10;
+// ---------------------------------------------------------------------------
+// Demo 2 sointutila: Smoke on the Water (Deep Purple)
+// Rakenne: Pääriffi × 3 + Bridge + Riffi × 2 = 36 sointua × 600ms = ~36s
+// Rock-setti: E=avoin(-1), G=fretti2, A=fretti0, B=fretti3, D=fretti1
+// ---------------------------------------------------------------------------
+const int D2_CHORDS[] = {
+   // Pääriffi × 3: E G A  E G B A  E G A  G E
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+};
+const int D2_CHORDS_N = 36;
 
-// Demo 2 nuottitila: Seven Nation Army
-const float D2_NOTES[]   = {
+// ---------------------------------------------------------------------------
+// Demo 2 nuottitila: Seven Nation Army (White Stripes) — pääriffi + bridge
+// 40 nuottia × (300ms + 80ms) = ~31.3s (looppi) — hieman tiheämpi rytmi
+// ---------------------------------------------------------------------------
+const float D2_NOTES[] = {
+   // Pääriffi × 2
    164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
    146.83f, 130.81f, 123.47f,            // D3 C3 B2
    164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
-   130.81f, 146.83f, 130.81f             // C3 D3 C3
+   130.81f, 146.83f, 130.81f,            // C3 D3 C3
+   // Pääriffi × 2 uudelleen
+   164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
+   146.83f, 130.81f, 123.47f,            // D3 C3 B2
+   164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
+   130.81f, 146.83f, 130.81f,            // C3 D3 C3
+   // Bridge: nouseva linja A2 C3 D3 F3 D3 C3
+   110.00f, 130.81f, 146.83f, 174.61f,   // A2 C3 D3 F3
+   146.83f, 130.81f,                     // D3 C3
+   // Paluu pääriffiinii
+   164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
+   146.83f, 130.81f, 123.47f,            // D3 C3 B2
+   164.81f, 164.81f,                     // E3 E3 (lopetus)
 };
-const int   D2_NOTES_N   = 14;
+const int D2_NOTES_N = 40;
 
 #define DEMO_OFF  0
 #define DEMO_1    1
