@@ -1,4 +1,5 @@
 # Guitar Hero PS3 → ESP32 Mozzi Syntetisaattori
+(huom! kehitys jatkuu siten että vahvistinpiiri sekä kaiutin pitää integroida kitaran sisälle)
 
 Muutetaan Guitar Hero 3 PS3 -kitara itsenäiseksi syntetisaattorisoittimeksi. Kaikki elektroniikka mahtuu kitaran rungon sisään — ei kaapeleita, ei konsolia, ei tietokonetta. Ääni lähtee sisäisestä kaiuttimesta ja laite toimii ladattavilla akuilla noin 17 tuntia.
 
