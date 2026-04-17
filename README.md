@@ -128,7 +128,7 @@ Tarkemmat kytkentätiedot: [KYTKENTA.md](KYTKENTA.md)
 6. Asenna virtakytkin ja USB-C latausportti sivuun
 7. Mittaa whammy-lepotila: `Serial.println(mozziAnalogRead(34))`
 
-Tarkemmat ohjeet: [KYTKENTA.md](KYTKENTA.md)
+Tarkemmat ohjeet: kytkenta.md tiedostossa
 
 ---
 
