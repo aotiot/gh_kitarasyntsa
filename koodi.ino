@@ -1,4 +1,3 @@
-
 // =============================================================================
 // GUITAR HERO PS3 → ESP32 MOZZI SYNTETISAATTORI
 // =============================================================================
@@ -25,6 +24,10 @@
 #define ENV_RELEASE_MS      400
 #define ENV_ATTACK_LEVEL    255
 #define ENV_DECAY_LEVEL     180
+
+// Avoin sointu sammuu automaattisesti tämän ajan jälkeen (ms)
+// Estää avoimen soinnun jäämisen soimaan loputtomiin
+#define OPEN_CHORD_TIMEOUT  2000
 
 // --- EFEKTIT ---
 #define DISTORTION_GAIN       6   // Säröytyksen vahvistus. Alue: 3–10.
@@ -54,7 +57,8 @@
 //   GPIO 1, 3  = USB Serial TX/RX — varattava ohjelmointia varten
 //   GPIO 25,26 = I2S Mozzi (BCK, WS) — varattu
 //   GPIO 19    = I2S Mozzi (DATA)    — varattu
-//   GPIO 0,2,12,15 = Strapping-pinnejä — toimivat INPUT_PULLUP:lla
+//   GPIO 0,2,15= Strapping-pinnejä — toimivat INPUT_PULLUP:lla
+//   GPIO 12    = Strapping flash-jännitteelle — VÄLTÄ, käytetty Demo1→siirretty
 //   GPIO 34,35,36,39 = Vain input, ei sisäistä pull-up vastusta
 //
 // PINNIKARTTA:
@@ -62,25 +66,27 @@
 //  3V3  → PCM5102A VCC             VIN  → TP4056 OUT+
 //  GND  → Yhteinen maa             GND  → TP4056 OUT-
 //  IO15 → SELECT                   IO13 → START
-//  IO2  → ORANSSI fret             IO12 → DEMO 1
+//  IO2  → ORANSSI fret             IO12   (vapaa — strapping, vältä)
 //  IO4  → D-pad ylös               IO14 → STRUM ylös
 //  IO5  → D-pad alas               IO16 → D-pad vasen
 //  IO18 → DEMO 3                   IO17 → D-pad oikea
-//  IO19 → I2S DATA (Mozzi)         IO32 → VIHREÄ fret
+//  IO19 → I2S DATA (Mozzi)         IO32 → DEMO 1
 //  IO21 → KELTAINEN fret           IO33 → DEMO 2
 //  IO22 → SININEN fret             IO34 → WHAMMY (ADC1, input-only)
-//  IO23 → STRUM alas               IO35 → (vapaa, input-only)
-//  IO25 → I2S WS   (Mozzi)         IO36 → (vapaa, input-only)
-//  IO26 → I2S BCK  (Mozzi)         IO39 → (vapaa, input-only)
+//  IO23 → STRUM alas               IO35 → VIHREÄ fret (input-only, pot.OK)
+//  IO25 → I2S WS   (Mozzi)         IO36   (vapaa, input-only)
+//  IO26 → I2S BCK  (Mozzi)         IO39   (vapaa, input-only)
 //  IO27 → PUNAINEN fret
 //
 // RYHMÄT:
-//   A — Fretit:    VIHREÄ=32, PUNAINEN=27, KELTAINEN=21, SININEN=22, ORANSSI=2
+//   A — Fretit:    VIHREÄ=35*, PUNAINEN=27, KELTAINEN=21, SININEN=22, ORANSSI=2
+//                  (* input-only, ei pull-up — nappi kytkee GND:hen suoraan OK)
 //   B — Strum:     YLÖS=14, ALAS=23, SELECT=15, START=13
 //   C — D-pad:     YLÖS=4, ALAS=5, VASEN=16, OIKEA=17
-//   D — Demo:      DEMO1=12, DEMO2=33, DEMO3=18
-//   E — Whammy:    GPIO 34 (ADC1, input-only, pot. hoitaa pull-upin)
+//   D — Demo:      DEMO1=32, DEMO2=33, DEMO3=18
+//   E — Whammy:    GPIO 34 (ADC1, input-only)
 //   F — I2S DAC:   BCK=26, WS=25, DATA=19
+//   G — Avoin:     osc[15..17] varattu avoimelle soinnulle/nuotille
 
 // I2S DAC — määriteltävä ENNEN kirjastoja
 #define MOZZI_AUDIO_MODE    MOZZI_OUTPUT_I2S_DAC
@@ -88,17 +94,17 @@
 #define MOZZI_I2S_PIN_WS    25
 #define MOZZI_I2S_PIN_DATA  19
 
-// Fretit (ryhmä A) — kaikki sisäinen pull-up
-#define PIN_GREEN           32
+// Fretit (ryhmä A)
+#define PIN_GREEN           35   // input-only — nappi kytkee suoraan GND:hen, OK
 #define PIN_RED             27
 #define PIN_YELLOW          21
 #define PIN_BLUE            22
-#define PIN_ORANGE           2   // strapping-pinni, INPUT_PULLUP pitää HIGH käynn. — OK
+#define PIN_ORANGE           2   // strapping, INPUT_PULLUP OK
 
 // Strum ja ohjainnapit (ryhmä B)
 #define PIN_STRUM_U         14
 #define PIN_STRUM_D         23
-#define PIN_SELECT          15   // strapping-pinni, INPUT_PULLUP OK
+#define PIN_SELECT          15
 #define PIN_START           13
 
 // D-pad (ryhmä C)
@@ -107,8 +113,8 @@
 #define PIN_JOY_LEFT        16   // D-pad vasen → edellinen efekti
 #define PIN_JOY_RIGHT       17   // D-pad oikea → seuraava efekti
 
-// Demo-napit (ryhmä D)
-#define PIN_DEMO1           12   // strapping-pinni, INPUT_PULLUP OK
+// Demo-napit (ryhmä D) — GPIO 12 vaihdettu 32:een (ei strapping)
+#define PIN_DEMO1           32
 #define PIN_DEMO2           33
 #define PIN_DEMO3           18
 
@@ -123,33 +129,34 @@
 #define NUM_FRETS    5
 #define NUM_OCT      3
 #define NUM_FX       5
-#define NUM_OSC      (NUM_FRETS * 3)   // 15 osillaattoria
+// 15 osillaattoria freteille + 3 avoimelle soinnulle = 18
+#define NUM_OSC      18
+#define OPEN_OSC_BASE 15   // Avoimen soinnun/nuotin osillaattorit: osc[15..17]
 
-// Avoin strum-sointu per setti (I-sointu, soitetaan ilman frettiä)
+// Avoin strum-sointu per setti (I-sointu)
 const float OPEN_CHORD[NUM_SETS][3] = {
    { 196.00f, 246.94f, 293.66f },   // G  (Pop)
    { 164.81f, 207.65f, 246.94f },   // E  (Rock)
    { 130.81f, 164.81f, 196.00f },   // C  (Balladi)
 };
 
-// Frettisoinnut — sama nappi = sama harmoninen funktio eri seteissä
-// Vihreä=IV, Punainen=V, Keltainen=vi, Sininen=ii, Oranssi=bVII
+// Frettisoinnut — sama nappi = sama harmoninen funktio
 const float CHORDS[NUM_SETS][NUM_FRETS][3] = {
-   {  // Pop (G-duuri)
+   {  // Pop (G-duuri): IV, V, vi, ii, bVII
       { 130.81f, 164.81f, 196.00f },   // C  IV
       { 146.83f, 185.00f, 220.00f },   // D  V
       { 164.81f, 196.00f, 246.94f },   // Em vi
       { 220.00f, 261.63f, 329.63f },   // Am ii
       { 174.61f, 220.00f, 261.63f },   // F  bVII
    },
-   {  // Rock (E-duuri) — "kitaran linkkuveitsi"
+   {  // Rock (E-duuri) — "kitaran linkkuveitsi": IV, V, vi, ii, bVII
       { 110.00f, 138.59f, 164.81f },   // A   IV
       { 123.47f, 155.56f, 185.00f },   // B   V
       { 138.59f, 164.81f, 207.65f },   // C#m vi
       { 185.00f, 220.00f, 277.18f },   // F#m ii
       { 146.83f, 185.00f, 220.00f },   // D   bVII
    },
-   {  // Balladi (C-duuri)
+   {  // Balladi (C-duuri): IV, V, vi, ii, bVII
       { 174.61f, 220.00f, 261.63f },   // F  IV
       { 196.00f, 246.94f, 293.66f },   // G  V
       { 220.00f, 261.63f, 329.63f },   // Am vi
@@ -158,7 +165,8 @@ const float CHORDS[NUM_SETS][NUM_FRETS][3] = {
    },
 };
 
-// Nuotit kolmessa oktaavissa — C-duuriasteikko (D E F G A fretillä, C strumin avoimena)
+// Nuotit kolmessa oktaavissa — C-duuriasteikko
+// Strum (avoin) = C, fretit = D E F G A
 const float NOTES[NUM_OCT][NUM_FRETS] = {
    { 146.83f, 164.81f, 174.61f, 196.00f, 220.00f },  // Basso    D3 E3 F3 G3 A3
    { 293.66f, 329.63f, 349.23f, 392.00f, 440.00f },  // Normaali D4 E4 F4 G4 A4
@@ -192,52 +200,43 @@ const char* CHORD_NAMES[NUM_SETS][NUM_FRETS] = {
 //   Demo 3 — House of the Rising Sun:     Am–C–D–F  (Pop-setti)
 //
 // NUOTTITILA:
-//   Demo 1 — Ode to Joy (Beethoven):      E4–E4–F4–G4...
-//   Demo 2 — Seven Nation Army (Stripes): E3–E3–G3–E3...
-//   Demo 3 — Twinkle Twinkle:            C4–C4–G4–G4...
+//   Demo 1 — Ode to Joy (Beethoven)
+//   Demo 2 — Seven Nation Army (The White Stripes)
+//   Demo 3 — Twinkle Twinkle Little Star
 //
 // Sointunumero: -1 = avoin sointu, 0–4 = fretti-indeksi
 
-// Demo 1 sointutila: Let It Be — C(0) G(avoin) Am(3) F(4)
 const int   D1_CHORDS[]  = { 0, -1, 3, 4,  0, -1, 3, 4 };
 const int   D1_CHORDS_N  = 8;
-
-// Demo 1 nuottitila: Ode to Joy
 const float D1_NOTES[]   = {
-   329.63f, 329.63f, 349.23f, 392.00f,   // E4 E4 F4 G4
-   392.00f, 349.23f, 329.63f, 293.66f,   // G4 F4 E4 D4
-   261.63f, 261.63f, 293.66f, 329.63f,   // C4 C4 D4 E4
-   329.63f, 293.66f, 293.66f             // E4 D4 D4
+   329.63f, 329.63f, 349.23f, 392.00f,
+   392.00f, 349.23f, 329.63f, 293.66f,
+   261.63f, 261.63f, 293.66f, 329.63f,
+   329.63f, 293.66f, 293.66f
 };
 const int   D1_NOTES_N   = 15;
 
-// Demo 2 sointutila: Smoke on the Water — E(avoin) G(2) A(0)
 const int   D2_CHORDS[]  = { -1, 2, 0,  -1, 2, 3, 0,  -1, 2, 0 };
 const int   D2_CHORDS_N  = 10;
-
-// Demo 2 nuottitila: Seven Nation Army
 const float D2_NOTES[]   = {
-   164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
-   146.83f, 130.81f, 123.47f,            // D3 C3 B2
-   164.81f, 164.81f, 196.00f, 164.81f,   // E3 E3 G3 E3
-   130.81f, 146.83f, 130.81f             // C3 D3 C3
+   164.81f, 164.81f, 196.00f, 164.81f,
+   146.83f, 130.81f, 123.47f,
+   164.81f, 164.81f, 196.00f, 164.81f,
+   130.81f, 146.83f, 130.81f
 };
 const int   D2_NOTES_N   = 14;
 
-// Demo 3 sointutila: House of the Rising Sun — Am(3) C(0) D(1) F(4) E(avoin)
 const int   D3_CHORDS[]  = { 3, 0, 1, 4,  3, 0, -1, -1 };
 const int   D3_CHORDS_N  = 8;
-
-// Demo 3 nuottitila: Twinkle Twinkle Little Star
 const float D3_NOTES[]   = {
-   261.63f, 261.63f, 392.00f, 392.00f,   // C4 C4 G4 G4
-   440.00f, 440.00f, 392.00f,            // A4 A4 G4
-   349.23f, 349.23f, 329.63f, 329.63f,   // F4 F4 E4 E4
-   293.66f, 293.66f, 261.63f,            // D4 D4 C4
-   392.00f, 392.00f, 349.23f, 349.23f,   // G4 G4 F4 F4
-   329.63f, 329.63f, 293.66f,            // E4 E4 D4
-   392.00f, 392.00f, 349.23f, 349.23f,   // G4 G4 F4 F4
-   329.63f, 329.63f, 293.66f             // E4 E4 D4
+   261.63f, 261.63f, 392.00f, 392.00f,
+   440.00f, 440.00f, 392.00f,
+   349.23f, 349.23f, 329.63f, 329.63f,
+   293.66f, 293.66f, 261.63f,
+   392.00f, 392.00f, 349.23f, 349.23f,
+   329.63f, 329.63f, 293.66f,
+   392.00f, 392.00f, 349.23f, 349.23f,
+   329.63f, 329.63f, 293.66f
 };
 const int   D3_NOTES_N   = 28;
 
@@ -264,17 +263,24 @@ const int   D3_NOTES_N   = 28;
 // =============================================================================
 
 volatile bool chordMode   = true;
-volatile int  currentSet  = 0;
-volatile int  currentOct  = 1;
-volatile int  currentFx   = 0;
+volatile int  currentSet  = 0;     // volatile: Core 0 kirjoittaa, Core 1 lukee
+volatile int  currentOct  = 1;     // volatile: Core 0 kirjoittaa, Core 1 lukee
+volatile int  currentFx   = 0;     // volatile: Core 0 kirjoittaa, Core 1 lukee
 volatile bool doReset     = false;
 volatile int  demoMode    = DEMO_OFF;
 volatile bool demoChanged = false;
+
+// Avoimen soinnun ajastin — sammutus OPEN_CHORD_TIMEOUT ms jälkeen
+// Nolla = ei aktiivista avointa sointua
+static unsigned long openChordStartMs = 0;
+static bool          openChordActive  = false;
 
 // =============================================================================
 // MOZZI-OBJEKTIT — Core 1
 // =============================================================================
 
+// osc[0..14]  = frettiosillaattorit (fretti N → osc[N*3..N*3+2])
+// osc[15..17] = avoimen soinnun/nuotin omat osillaattorit
 Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc[NUM_OSC] = {
    Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
    Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
@@ -291,6 +297,9 @@ Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc[NUM_OSC] = {
    Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
    Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
    Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA), // osc[15] avoin
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA), // osc[16] avoin
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA), // osc[17] avoin
 };
 
 ADSR<CONTROL_RATE, AUDIO_RATE> env[NUM_OSC];
@@ -318,7 +327,6 @@ bool demo1Last     = true;
 bool demo2Last     = true;
 bool demo3Last     = true;
 
-// Flagit Core 0 → Core 1
 volatile bool triggerFlags[NUM_FRETS] = {false};
 volatile bool releaseFlags[NUM_FRETS] = {false};
 volatile bool triggerOpen = false;
@@ -341,21 +349,18 @@ void buttonTask(void *pvParameters) {
       bool cDemo2     = digitalRead(PIN_DEMO2)     == LOW;
       bool cDemo3     = digitalRead(PIN_DEMO3)     == LOW;
 
-      // Demo-napit: sama nappi uudelleen pysäyttää, eri nappi vaihtaa
+      // Demo-napit: sama nappi pysäyttää, eri nappi vaihtaa
       if (cDemo1 && !demo1Last) {
          demoMode    = (demoMode == DEMO_1) ? DEMO_OFF : DEMO_1;
          demoChanged = true;
-         Serial.println(demoMode ? "Demo 1 ON" : "Demo OFF");
       }
       if (cDemo2 && !demo2Last) {
          demoMode    = (demoMode == DEMO_2) ? DEMO_OFF : DEMO_2;
          demoChanged = true;
-         Serial.println(demoMode ? "Demo 2 ON" : "Demo OFF");
       }
       if (cDemo3 && !demo3Last) {
          demoMode    = (demoMode == DEMO_3) ? DEMO_OFF : DEMO_3;
          demoChanged = true;
-         Serial.println(demoMode ? "Demo 3 ON" : "Demo OFF");
       }
       demo1Last = cDemo1;
       demo2Last = cDemo2;
@@ -374,7 +379,7 @@ void buttonTask(void *pvParameters) {
          fretHeld[i] = pressed;
       }
 
-      // Strum — START + STRUM = nollaa kaikki
+      // Strum — START + STRUM = nollaa
       bool strumEdge = (cStrumD && !strumDLast) || (cStrumU && !strumULast);
       if (strumEdge) {
          if (cStart) {
@@ -390,7 +395,7 @@ void buttonTask(void *pvParameters) {
       strumDLast = cStrumD;
       strumULast = cStrumU;
 
-      // Select: vaihda sointu/nuotti-tila
+      // Select
       if (cSelect && !selectLast) {
          chordMode = !chordMode;
          Serial.println(chordMode ? "Tila: Sointutila" : "Tila: Nuottitila");
@@ -436,13 +441,15 @@ void buttonTask(void *pvParameters) {
 // ÄÄNEN OHJAUSFUNKTIOT — Core 1
 // =============================================================================
 
-// Laukaisee soinnun. fret=-1 soittaa avoimen soinnun setistä.
+// Laukaisee fretin soinnun. fret=-1 käyttää avoimen soinnun osillaattoreita.
 void triggerChord(int fret) {
    if (fret == -1) {
       for (int n = 0; n < 3; n++) {
-         osc[n].setFreq(OPEN_CHORD[currentSet][n]);
-         env[n].noteOn();
+         osc[OPEN_OSC_BASE + n].setFreq(OPEN_CHORD[currentSet][n]);
+         env[OPEN_OSC_BASE + n].noteOn();
       }
+      openChordActive  = true;
+      openChordStartMs = millis();
    } else {
       for (int n = 0; n < 3; n++) {
          int idx = fret * 3 + n;
@@ -454,12 +461,14 @@ void triggerChord(int fret) {
 
 void releaseChord(int fret) {
    if (fret == -1) {
-      for (int n = 0; n < 3; n++) env[n].noteOff();
+      for (int n = 0; n < 3; n++) env[OPEN_OSC_BASE + n].noteOff();
+      openChordActive = false;
    } else {
       for (int n = 0; n < 3; n++) env[fret * 3 + n].noteOff();
    }
 }
 
+// Laukaisee yhden nuotin. Avoin nuotti käyttää osc[OPEN_OSC_BASE].
 void triggerNote(int fret) {
    osc[fret * 3].setFreq(NOTES[currentOct][fret]);
    env[fret * 3].noteOn();
@@ -471,30 +480,28 @@ void releaseNote(int fret) {
 
 // Soittaa suoran taajuuden — demotila käyttää nuottitilassa
 void triggerFreq(float freq) {
-   osc[0].setFreq(freq);
-   env[0].noteOn();
+   osc[OPEN_OSC_BASE].setFreq(freq);
+   env[OPEN_OSC_BASE].noteOn();
 }
 
-// Strum ilman frettiä
+// Strum ilman frettiä — käyttää omia osillaattoreita (ei konflikti frettien kanssa)
 void triggerOpenSound() {
    if (chordMode) {
-      for (int n = 0; n < 3; n++) {
-         osc[n].setFreq(OPEN_CHORD[currentSet][n]);
-         env[n].noteOn();
-      }
+      triggerChord(-1);
       Serial.println(OPEN_NAMES[currentSet]);
    } else {
-      osc[0].setFreq(OPEN_NOTE[currentOct]);
-      env[0].noteOn();
+      osc[OPEN_OSC_BASE].setFreq(OPEN_NOTE[currentOct]);
+      env[OPEN_OSC_BASE].noteOn();
+      openChordActive  = true;
+      openChordStartMs = millis();
    }
 }
 
-// Sammuttaa kaikki äänet
 void silenceAll() {
    for (int i = 0; i < NUM_OSC; i++) env[i].noteOff();
+   openChordActive = false;
 }
 
-// Nollaa kaiken oletusarvoihin
 void resetAll() {
    silenceAll();
    for (int i = 0; i < NUM_FRETS; i++) {
@@ -502,27 +509,28 @@ void resetAll() {
       releaseFlags[i] = false;
       fretHeld[i]     = false;
    }
-   triggerOpen = false;
-   demoMode    = DEMO_OFF;
-   demoChanged = false;
-   chordMode   = true;
-   currentSet  = 0;
-   currentOct  = 1;
-   currentFx   = 0;
-   doReset     = false;
+   triggerOpen      = false;
+   demoMode         = DEMO_OFF;
+   demoChanged      = false;
+   openChordActive  = false;
+   openChordStartMs = 0;
+   chordMode        = true;
+   currentSet       = 0;
+   currentOct       = 1;
+   currentFx        = 0;
+   doReset          = false;
    lfo.setFreq(TREMOLO_RATE_HZ);
    Serial.println("RESET — Sointutila / Pop / Normaali / Clean");
 }
 
 // =============================================================================
-// DEMOTILAN AJASTIN — Core 1, kutsutaan updateControl:ista
+// DEMOTILAN AJASTIN — Core 1
 // =============================================================================
 
-static int           demoStep    = 0;
-static unsigned long demoNextMs  = 0;
+static int           demoStep   = 0;
+static unsigned long demoNextMs = 0;
 
 void updateDemo() {
-   // Demo vaihtui — nollaa askel ja odota lyhyt tauko
    if (demoChanged) {
       silenceAll();
       demoStep    = 0;
@@ -530,16 +538,11 @@ void updateDemo() {
       demoChanged = false;
       return;
    }
-
    if (demoMode == DEMO_OFF) return;
    if (millis() < demoNextMs) return;
 
-   // Hae aktiivisen demon data
-   const int*   chords  = nullptr;
-   int          chordsN = 0;
-   const float* notes   = nullptr;
-   int          notesN  = 0;
-
+   const int*   chords  = nullptr; int chordsN = 0;
+   const float* notes   = nullptr; int notesN  = 0;
    switch (demoMode) {
       case DEMO_1: chords=D1_CHORDS; chordsN=D1_CHORDS_N; notes=D1_NOTES; notesN=D1_NOTES_N; break;
       case DEMO_2: chords=D2_CHORDS; chordsN=D2_CHORDS_N; notes=D2_NOTES; notesN=D2_NOTES_N; break;
@@ -548,7 +551,6 @@ void updateDemo() {
    }
 
    silenceAll();
-
    if (chordMode) {
       triggerChord(chords[demoStep % chordsN]);
       demoStep++;
@@ -567,17 +569,18 @@ void updateDemo() {
 void setup() {
    Serial.begin(115200);
 
-   // Kytke WiFi ja Bluetooth pois — ei tarvita, säästää virtaa
-   // ja vapauttaa ADC2-pinnit häiriöttömään käyttöön
+   // WiFi ja Bluetooth pois — ei tarvita, vapauttaa ADC2-pinnit
    WiFi.mode(WIFI_OFF);
    btStop();
 
-   // Kaikki napit INPUT_PULLUP — painallus vetää LOW
-   pinMode(PIN_GREEN,     INPUT_PULLUP);
+   // Fretit — GPIO 35 on input-only, ei sisäistä pull-up
+   // Nappi kytkee suoraan GND:hen → digitalRead LOW kun painettu → toimii
+   pinMode(PIN_GREEN,     INPUT);        // GPIO 35 — input-only, nappi → GND
    pinMode(PIN_RED,       INPUT_PULLUP);
    pinMode(PIN_YELLOW,    INPUT_PULLUP);
    pinMode(PIN_BLUE,      INPUT_PULLUP);
    pinMode(PIN_ORANGE,    INPUT_PULLUP);
+
    pinMode(PIN_STRUM_D,   INPUT_PULLUP);
    pinMode(PIN_STRUM_U,   INPUT_PULLUP);
    pinMode(PIN_SELECT,    INPUT_PULLUP);
@@ -589,9 +592,8 @@ void setup() {
    pinMode(PIN_DEMO1,     INPUT_PULLUP);
    pinMode(PIN_DEMO2,     INPUT_PULLUP);
    pinMode(PIN_DEMO3,     INPUT_PULLUP);
-   // PIN_WHAMMY (34) on ADC1 input-only — ei pinMode tarvita
+   // PIN_WHAMMY (34) input-only ADC1 — ei pinMode tarvita
 
-   // ADSR kaikille osillaattoreille
    for (int i = 0; i < NUM_OSC; i++) {
       env[i].setADLevels(ENV_ATTACK_LEVEL, ENV_DECAY_LEVEL);
       env[i].setTimes(ENV_ATTACK_MS, ENV_DECAY_MS, ENV_SUSTAIN_MS, ENV_RELEASE_MS);
@@ -600,7 +602,6 @@ void setup() {
    lfo.setFreq(TREMOLO_RATE_HZ);
    ringOsc.setFreq(RING_MOD_FREQ_HZ);
 
-   // Nappitehtävä Core 0:lle — Mozzi käyttää Core 1:tä
    xTaskCreatePinnedToCore(
       buttonTask, "ButtonTask", BUTTON_TASK_STACK, NULL, 1, NULL, 0
    );
@@ -616,10 +617,15 @@ void setup() {
 void updateControl() {
    if (doReset) { resetAll(); return; }
 
-   // Demo hoitaa äänet kun päällä
    if (demoMode != DEMO_OFF || demoChanged) {
       updateDemo();
       return;
+   }
+
+   // Avoimen soinnun automaattinen sammutus ajastimen perusteella
+   if (openChordActive && millis() - openChordStartMs > OPEN_CHORD_TIMEOUT) {
+      releaseChord(-1);
+      Serial.println("Avoin sointu sammutettu (timeout)");
    }
 
    // Vapautus-flagit
@@ -642,7 +648,7 @@ void updateControl() {
       triggerOpen = false;
    }
 
-   // Whammy — pitch bend 0–WHAMMY_MAX_BEND
+   // Whammy
    float bend = (float)mozziAnalogRead(PIN_WHAMMY) / 4095.0f * WHAMMY_MAX_BEND;
 
    // LFO efektin mukaan
@@ -654,7 +660,7 @@ void updateControl() {
       vibratoMod = VIBRATO_DEPTH * ((float)lfo.next() / 128.0f);
    }
 
-   // Päivitä kaikkien osillaattorien taajuudet
+   // Päivitä frettiosillaattorien taajuudet (osc[0..14])
    for (int i = 0; i < NUM_FRETS; i++) {
       for (int n = 0; n < 3; n++) {
          int   idx  = i * 3 + n;
@@ -665,6 +671,11 @@ void updateControl() {
             osc[idx].setFreq(base * (1.0f + bend + vibratoMod));
          env[idx].update();
       }
+   }
+
+   // Päivitä avoimen soinnun osillaattorit (osc[15..17])
+   for (int n = 0; n < 3; n++) {
+      env[OPEN_OSC_BASE + n].update();
    }
 }
 
@@ -678,14 +689,15 @@ AudioOutput_t updateAudio() {
    for (int i = 0; i < NUM_OSC; i++)
       out += (int32_t)(env[i].next() * osc[i].next()) >> 8;
 
+   // Jaa 18:lla (NUM_OSC) ylikuormituksen estämiseksi
    out /= AUDIO_SCALER;
 
    switch (currentFx) {
-      case 1:  out = constrain(out * DISTORTION_GAIN, -128, 127); break;  // Distortion
-      case 2:  out = (int32_t)(out * (128 + lfo.next())) >> 8;    break;  // Tremolo
-      case 3:  break;                                                       // Vibrato (updateControl)
-      case 4:  out = (int32_t)(out * ringOsc.next()) >> 7;         break;  // Ring Mod
-      default: break;                                                       // Clean
+      case 1:  out = constrain(out * DISTORTION_GAIN, -128, 127); break;
+      case 2:  out = (int32_t)(out * (128 + lfo.next())) >> 8;    break;
+      case 3:  break;
+      case 4:  out = (int32_t)(out * ringOsc.next()) >> 7;         break;
+      default: break;
    }
 
    return StereoOutput::fromNBit(8, out, out);
