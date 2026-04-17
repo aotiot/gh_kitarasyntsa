@@ -1,5 +1,4 @@
 # Guitar Hero PS3 → ESP32 Mozzi Syntetisaattori
-(huom! kehitys jatkuu siten että vahvistinpiiri sekä kaiutin pitää integroida kitaran sisälle)
 
 Muutetaan Guitar Hero 3 PS3 -kitara itsenäiseksi syntetisaattorisoittimeksi. Kaikki elektroniikka mahtuu kitaran rungon sisään — ei kaapeleita, ei konsolia, ei tietokonetta. Ääni lähtee sisäisestä kaiuttimesta ja laite toimii ladattavilla akuilla noin 17 tuntia.
 
@@ -8,11 +7,11 @@ Muutetaan Guitar Hero 3 PS3 -kitara itsenäiseksi syntetisaattorisoittimeksi. Ka
 ## Ominaisuudet
 
 - **Sointutila** — kolme sointusettia (Pop, Rock, Balladi), jokainen fretti soittaa kolmisoinnun
-- **Nuottitila** — C-duuriasteikko (C D E F G A) pentatonisessa järjestyksessä
+- **Nuottitila** — C-duuriasteikko (C D E F G A)
 - **Kolme oktaavia** — basso, normaali, melodia
 - **Viisi efektiä** — Clean, Distortion, Tremolo, Vibrato, Ring Modulator
 - **Whammy bar** — portaaton pitch bend reaaliajassa
-- **Demo-tila** — kolme automaattisesti soivaa kappaletta (sointutila + nuottitila)
+- **Demo-tila** — kaksi automaattisesti soivaa kappaletta (eri kappale sointu- ja nuottitilassa)
 - **USB-C lataus** — 2× 18650 Li-ion akku, noin 17 h käyttöaika
 - **Dual-core** — FreeRTOS, napit Core 0:lla, Mozzi-ääni Core 1:llä
 
@@ -27,10 +26,10 @@ Muutetaan Guitar Hero 3 PS3 -kitara itsenäiseksi syntetisaattorisoittimeksi. Ka
 | Vahvistin | PAM8403 3W | ~0.50€ |
 | Kaiutin | 8Ω 2W 50mm | ~1–2€ |
 | Akut | 2× 18650 Li-ion | ~4–6€ |
-| Latauspiiri | TP4056 + DW01 | ~0.50€ |
+| Latauspiiri | TP4056 + DW01 suojapiiri | ~0.50€ |
 | USB-C liitäntä | USB-C breakout | ~0.30€ |
 | Virtakytkin | Liukukytkin | ~0.20€ |
-| Vastukset | 4kΩ, 5.1kΩ×2, 1kΩ | ~0.10€ |
+| Vastukset | 4kΩ × 1, 5.1kΩ × 2, 1kΩ × 1 | ~0.10€ |
 | **Yhteensä** | | **~11–14€** |
 
 ---
@@ -57,17 +56,22 @@ gh_synth/
 
 ## Nappien toiminnot
 
-| Nappi | Toiminto |
-|---|---|
-| Fretit (5 kpl) | Sointu tai nuotti tilan mukaan |
-| Strum ylös / alas | Laukaisee äänen |
-| Start + Strum | Nollaa kaikki asetukset |
-| Start yksin | Kierrätä sointusetti (Pop → Rock → Balladi) |
-| Select | Vaihda sointu ↔ nuotti -tila |
-| D-pad ylös / alas | Oktaavi ylös / alas |
-| D-pad vasen / oikea | Edellinen / seuraava efekti |
-| Whammy bar | Pitch bend |
-| Demo 1 / 2 / 3 | Käynnistä tai pysäytä demo |
+| Nappi | GPIO | Toiminto |
+|---|---|---|
+| Vihreä fret | 32 | Sointu tai nuotti 1 |
+| Punainen fret | 27 | Sointu tai nuotti 2 |
+| Keltainen fret | 21 | Sointu tai nuotti 3 |
+| Sininen fret | 22 | Sointu tai nuotti 4 |
+| Oranssi fret | 2 | Sointu tai nuotti 5 |
+| Strum ylös / alas | 14 / 23 | Laukaisee äänen |
+| Start + Strum | 13 + 14/23 | Nollaa kaikki asetukset |
+| Start yksin | 13 | Kierrätä sointusetti |
+| Select | 15 | Vaihda sointu ↔ nuotti -tila |
+| D-pad ylös / alas | 4 / 5 | Oktaavi ylös / alas |
+| D-pad vasen / oikea | 16 / 17 | Edellinen / seuraava efekti |
+| Whammy bar | 34 | Pitch bend |
+| Demo 1 | 33 | Käynnistä / pysäytä Demo 1 |
+| Demo 2 | 18 | Käynnistä / pysäytä Demo 2 |
 
 ---
 
@@ -86,6 +90,15 @@ Sama nappi soittaa aina saman harmonisen funktion — vain perusääni vaihtuu s
 
 ---
 
+## Demo-kappaleet
+
+| Nappi | Sointutila | Nuottitila |
+|---|---|---|
+| Demo 1 (GPIO 33) | Let It Be — C G Am F | Ode to Joy |
+| Demo 2 (GPIO 18) | Smoke on the Water — E G A | Seven Nation Army |
+
+---
+
 ## Pinnijärjestys (ESP32 DevKit V1)
 
 ```
@@ -93,29 +106,31 @@ VASEN REUNA                    OIKEA REUNA
 3V3  → PCM5102A VCC            VIN  → TP4056 OUT+
 GND  → Yhteinen maa            GND  → TP4056 OUT-
 IO15 → SELECT                  IO13 → START
-IO2  → ORANSSI fret            IO12 → DEMO 1
+IO2  → ORANSSI fret            IO12   (vapaa)
 IO4  → D-pad ylös              IO14 → STRUM ylös
 IO5  → D-pad alas              IO16 → D-pad vasen
-IO18 → DEMO 3                  IO17 → D-pad oikea
+IO18 → DEMO 2                  IO17 → D-pad oikea
 IO19 → I2S DATA (Mozzi)        IO32 → VIHREÄ fret
-IO21 → KELTAINEN fret          IO33 → DEMO 2
+IO21 → KELTAINEN fret          IO33 → DEMO 1
 IO22 → SININEN fret            IO34 → WHAMMY (ADC1)
 IO23 → STRUM alas              IO27 → PUNAINEN fret
 IO25 → I2S WS   (Mozzi)
 IO26 → I2S BCK  (Mozzi)
 ```
 
-Tarkemmat kytkentätiedot: [KYTKENTA.md]([KYTKENTA.md](https://github.com/aotiot/gh_kitarasyntsa/blob/main/kytkenta.md))
+Tarkemmat kytkentätiedot: [KYTKENTA.md](KYTKENTA.md)
 
 ---
 
-## Demo-kappaleet
+## Vastukset (4 kpl)
 
-| Nappi | Sointutila | Nuottitila |
+| Käyttökohde | Arvo | Pakollinen |
 |---|---|---|
-| Demo 1 | Let It Be — C G Am F | Ode to Joy |
-| Demo 2 | Smoke on the Water — E G A | Seven Nation Army |
-| Demo 3 | House of the Rising Sun — Am C D F | Twinkle Twinkle |
+| TP4056 latausvirta (PROG) | 4kΩ | Kyllä |
+| USB-C CC1 ja CC2 | 5.1kΩ × 2 | Kyllä |
+| PAM8403 L_IN+ bias | 1kΩ | Suositeltava |
+
+Kaikki napit käyttävät ESP32:n sisäistä pull-up vastusta — ei ulkoisia nappi-vastuksia tarvita.
 
 ---
 
@@ -125,11 +140,11 @@ Tarkemmat kytkentätiedot: [KYTKENTA.md]([KYTKENTA.md](https://github.com/aotiot
 2. Avaa kitara (T10 Torx, ruuvit pohjassa)
 3. Kartoita fret-nappien johtimet yleismittarilla
 4. Juota johdot GPIO-pinneihin
-5. Asenna komponentit runkoon, poraa reikä kaiuttimelle
+5. Asenna komponentit runkoon, poraa reikä kaiuttimelle (50mm)
 6. Asenna virtakytkin ja USB-C latausportti sivuun
 7. Mittaa whammy-lepotila: `Serial.println(mozziAnalogRead(34))`
 
-Tarkemmat ohjeet: kytkenta.md tiedostossa
+Tarkemmat ohjeet: [KYTKENTA.md](KYTKENTA.md)
 
 ---
 
