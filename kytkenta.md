@@ -12,21 +12,21 @@
  IO15  │ ●     ● │ IO22 ← SININEN fret
   IO2  │ ●     ● │ IO21 ← KELTAINEN fret
   IO4  │ ●     ● │ IO19 ← I2S DATA (Mozzi)
-  IO5  │ ●     ● │ IO18 ← DEMO 3
- IO16  │ ●     ● │ IO5  (D-pad alas)
- IO17  │ ●     ● │ IO17 (D-pad oikea)
- IO18  │ ●     ● │ IO16 (D-pad vasen)
+  IO5  │ ●     ● │ IO18 ← DEMO 2
+ IO16  │ ●     ● │ IO17 (D-pad oikea)
+ IO17  │ ●     ● │ IO16 (D-pad vasen)
+ IO18  │ ●     ● │ IO5  (D-pad alas)
  IO19  │ ●     ● │ IO4  (D-pad ylös)
  IO21  │ ●     ● │ IO2  ← ORANSSI fret
  IO22  │ ●     ● │ IO15 ← SELECT
  IO23  │ ●     ● │ GND
  IO25  │ ●     ● │ IO13 ← START
- IO26  │ ●     ● │ IO12 ← DEMO 1
+ IO26  │ ●     ● │ IO12   (vapaa, vältä strapping)
        │         │ IO14 ← STRUM ylös
        │ vasen   │ IO27 ← PUNAINEN fret
        │ reuna   │ IO26 ← I2S BCK (Mozzi)
        │         │ IO25 ← I2S WS  (Mozzi)
-       │         │ IO33 ← DEMO 2
+       │         │ IO33 ← DEMO 1
        │         │ IO32 ← VIHREÄ fret
        │         │ IO35   (vapaa, input-only)
        │         │ IO34 ← WHAMMY BAR (ADC1)
@@ -42,7 +42,7 @@
 
 ## Ryhmä A — Fretit
 
-Johtimet kulkevat kitaran kaulasta runkoon. Kaikki käyttävät ESP32:n sisäistä pull-up vastusta — ei ulkoisia vastuksia tarvita.
+Johtimet kulkevat kitaran kaulasta runkoon. Kaikki normaaleja GPIO-pinnejä — sisäinen pull-up toimii.
 
 | Nappi | GPIO | Kytkentä |
 |---|---|---|
@@ -88,21 +88,20 @@ Kytkentä: `GPIO → nappi → GND` (INPUT_PULLUP)
 
 ## Ryhmä D — Demo-napit
 
-Kolme nappia kitaran rungossa.
+Kaksi nappia kitaran rungossa. Molemmat normaaleja GPIO-pinnejä — sisäinen pull-up, ei ulkoisia vastuksia.
 
 | Nappi | GPIO | Kytkentä |
 |---|---|---|
-| Demo 1 | GPIO 12 | GPIO → nappi → GND |
-| Demo 2 | GPIO 33 | GPIO → nappi → GND |
-| Demo 3 | GPIO 18 | GPIO → nappi → GND |
+| Demo 1 | GPIO 33 | GPIO → nappi → GND |
+| Demo 2 | GPIO 18 | GPIO → nappi → GND |
 
-> GPIO 12 on strapping-pinni. INPUT_PULLUP pitää sen HIGH käynnistyksessä — nappikytkentä on turvallinen.
+Kytkentä: `GPIO → nappi → GND` (INPUT_PULLUP)
 
 ---
 
 ## Ryhmä E — Whammy bar
 
-Potentiometri strummilevyn alla. GPIO 34 on ADC1-kanava (input-only) — potentiometri hoitaa jännitteenjaon, erillistä pull-up vastusta ei tarvita.
+Potentiometri strummilevyn alla. GPIO 34 on ADC1-kanava (input-only) — potentiometri hoitaa jännitteenjaon, pull-up vastusta ei tarvita.
 
 ```
 3.3V ────── potentiometrin pää 1
@@ -160,6 +159,8 @@ TP4056 OUT+ → Virtakytkin → ESP32 VIN
 TP4056 OUT− → GND
 ```
 
+> Käytä TP4056-moduulia jossa on yhdistetty suojapiiri (DW01+FS8205A).
+
 ---
 
 ## Vastusluettelo
@@ -171,16 +172,17 @@ TP4056 OUT− → GND
 | PAM8403 L_IN+ bias | 1kΩ | 1 | Suositeltava |
 | **Yhteensä** | | **4 kpl** | |
 
-Napit käyttävät ESP32:n sisäistä pull-up vastusta — ei ulkoisia nappi-vastuksia tarvita.
+Kaikki napit käyttävät ESP32:n sisäistä pull-up vastusta — ei ulkoisia nappi-vastuksia tarvita.
 
 ---
 
 ## Käyttämättömät pinnit
 
-| GPIO | Huomio |
-|---|---|
-| GPIO 34, 35 | Vapaa — input-only, vaatisi ulkoisen pull-up jos käyttää nappina |
-| GPIO 36, 39 | Vapaa — input-only, vaatisi ulkoisen pull-up jos käyttää nappina |
+| GPIO | Tyyppi | Huomio |
+|---|---|---|
+| GPIO 12 | Normaali | Vapaa — strapping, vältä jos mahdollista |
+| GPIO 34, 35 | Input-only | Vapaa — vaatisi ulkoisen pull-upin napeille |
+| GPIO 36, 39 | Input-only | Vapaa — vaatisi ulkoisen pull-upin napeille |
 
 ---
 
@@ -191,5 +193,5 @@ Napit käyttävät ESP32:n sisäistä pull-up vastusta — ei ulkoisia nappi-vas
 | 6–11 | Flash-muisti — EI koskaan käytä |
 | 1, 3 | USB Serial — varattava ohjelmointia varten |
 | 25, 26, 19 | I2S Mozzi — varattu |
-| 34, 35, 36, 39 | Vain input, ei sisäistä pull-up vastusta |
+| 34, 35, 36, 39 | Vain input — ei sisäistä pull-up vastusta |
 | 0, 2, 12, 15 | Strapping — toimivat INPUT_PULLUP:lla |
