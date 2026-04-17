@@ -6,38 +6,41 @@
 
 1. Paina virtakytkin päälle (kitaran sivussa tai strummilevyn vieressä)
 2. Laite käynnistyy noin sekunnissa — ei ääntä käynnistyessä
-3. Oletustila käynnistyessä: **Sointutila / Pop-setti / Normaali oktaavi / Clean**
+3. Oletustila: **Sointutila / Pop-setti / Normaali oktaavi / Clean**
 
 ---
 
 ## Äänen soittaminen
 
-Ääni syntyy aina kahdessa vaiheessa:
+Ääni syntyy kahdessa vaiheessa:
 
 1. **Paina fretti pohjaan** (tai useampi yhtä aikaa)
 2. **Strumaa** — ääni laukaistaan
 
-Strum toimii molempiin suuntiin. Jos strumataan ilman frettiä pohjassa, laite soittaa settin perussoinnun (G, E tai C) tai alimman nuotin (nuottitilassa).
+Strum toimii molempiin suuntiin. Jos strumataan ilman frettiä, soitetaan settin perussoitu tai alin nuotti. Avoin sointu sammuu automaattisesti 2 sekunnin kuluttua.
 
 ---
 
 ## Nappien toiminnot
 
-| Nappi | Toiminto |
-|---|---|
-| Fretit (5 kpl) | Sointu tai nuotti tilan mukaan |
-| Strum ylös / alas | Laukaisee äänen |
-| **Start + Strum** | Nollaa kaikki asetukset |
-| Start yksin | Kierrätä sointusetti (sointutilassa) |
-| Select | Vaihda sointu ↔ nuotti -tila |
-| D-pad ylös | Oktaavi ylös |
-| D-pad alas | Oktaavi alas |
-| D-pad vasen | Edellinen efekti |
-| D-pad oikea | Seuraava efekti |
-| Whammy bar | Pitch bend — taivuttaa äänen korkeutta |
-| Demo 1 | Käynnistä / pysäytä Demo 1 |
-| Demo 2 | Käynnistä / pysäytä Demo 2 |
-| Demo 3 | Käynnistä / pysäytä Demo 3 |
+| Nappi | GPIO | Toiminto |
+|---|---|---|
+| Vihreä fret | 32 | Sointu tai nuotti 1 |
+| Punainen fret | 27 | Sointu tai nuotti 2 |
+| Keltainen fret | 21 | Sointu tai nuotti 3 |
+| Sininen fret | 22 | Sointu tai nuotti 4 |
+| Oranssi fret | 2 | Sointu tai nuotti 5 |
+| Strum ylös / alas | 14 / 23 | Laukaisee äänen |
+| **Start + Strum** | 13 + 14/23 | Nollaa kaikki asetukset |
+| Start yksin | 13 | Kierrätä sointusetti (sointutilassa) |
+| Select | 15 | Vaihda sointu ↔ nuotti -tila |
+| D-pad ylös | 4 | Oktaavi ylös |
+| D-pad alas | 5 | Oktaavi alas |
+| D-pad vasen | 16 | Edellinen efekti |
+| D-pad oikea | 17 | Seuraava efekti |
+| Whammy bar | 34 | Pitch bend |
+| Demo 1 | 33 | Käynnistä / pysäytä Demo 1 |
+| Demo 2 | 18 | Käynnistä / pysäytä Demo 2 |
 
 ---
 
@@ -47,16 +50,16 @@ Jokainen fretti soittaa kolmisoinnun. Strum laukaisee soinnun.
 
 ### Sointusetit
 
-Sama nappi soittaa aina saman harmonisen funktion — vain perusääni vaihtuu setin mukaan. Vaihdetaan Start-napilla.
+Sama nappi soittaa aina saman harmonisen funktion — vain perusääni vaihtuu. Vaihdetaan Start-napilla.
 
 | Nappi | Funktio | Pop (G) | Rock (E) | Balladi (C) |
 |---|---|---|---|---|
-| Strum (avoin) | I — kotisointu | G | E | C |
-| Vihreä | IV — neljäs | C | A | F |
-| Punainen | V — viides | D | B | G |
-| Keltainen | vi — molliseksti | Em | C#m | Am |
-| Sininen | ii — toinen molli | Am | F#m | Dm |
-| Oranssi | bVII — matala seitsemäs | F | D | Bb |
+| Strum (avoin) | I | G | E | C |
+| Vihreä | IV | C | A | F |
+| Punainen | V | D | B | G |
+| Keltainen | vi | Em | C#m | Am |
+| Sininen | ii | Am | F#m | Dm |
+| Oranssi | bVII | F | D | Bb |
 
 **Pop** — Let It Be, Love Story, Someone Like You ja sadat muut.
 **Rock** — E-duurin blues-pohja, sopii rock- ja blues-musiikkiin.
@@ -77,17 +80,15 @@ Soittaa yksittäisiä nuotteja C-duuriasteikosta. Sopii melodioiden soittamiseen
 | Sininen | G |
 | Oranssi | A |
 
-Oktaavia voi vaihtaa D-padilla myös nuottitilassa.
-
 ---
 
 ## Oktaavit
 
 | Oktaavi | Kuvaus | Soveltuu |
 |---|---|---|
-| Basso | Matala, tumma ääni | Bassolinjat |
+| Basso | Matala, tumma | Bassolinjat |
 | Normaali | Perusoktaavi (oletus) | Yleisoitto |
-| Melodia | Korkea, kirkas ääni | Melodiat |
+| Melodia | Korkea, kirkas | Melodiat |
 
 D-pad ylös nostaa, D-pad alas laskee. Ei kierrä rajojen yli.
 
@@ -100,32 +101,32 @@ Vaihdetaan D-pad vasen/oikea. Kierrää järjestyksessä.
 | # | Efekti | Kuvaus |
 |---|---|---|
 | 0 | Clean | Puhdas siniaalto |
-| 1 | Distortion | Säröytys — rock-kitaran klassikko |
-| 2 | Tremolo | Äänen voimakkuus heiluu (4 Hz) |
-| 3 | Vibrato | Äänen korkeus heiluu (6 Hz) |
-| 4 | Ring Mod | Metallinen, kellomaisesti sointuva ääni |
+| 1 | Distortion | Säröytys |
+| 2 | Tremolo | Äänen voimakkuus heiluu 4 Hz |
+| 3 | Vibrato | Äänen korkeus heiluu 6 Hz |
+| 4 | Ring Mod | Metallinen, kellomaisesti sointuva |
 
 ---
 
 ## Whammy bar
 
-Painamalla kampea alas äänen korkeus nousee portaattomasti (+5% max). Toimii kaikkien efektien kanssa samanaikaisesti.
+Painamalla kampea alas äänen korkeus nousee portaattomasti (max +5%). Toimii kaikkien efektien kanssa samanaikaisesti.
 
 ---
 
 ## Demo-napit
 
-Kolme demo-nappia soittavat kappaleen automaattisesti. Demo soittaa eri kappaleet tilan mukaan.
+Kaksi demo-nappia soittavat kappaleen automaattisesti. Tila vaikuttaa siihen mitä soitetaan.
 
 | Nappi | Sointutila | Nuottitila |
 |---|---|---|
-| Demo 1 | Let It Be — C G Am F | Ode to Joy |
-| Demo 2 | Smoke on the Water — E G A | Seven Nation Army |
-| Demo 3 | House of the Rising Sun — Am C D F | Twinkle Twinkle |
+| Demo 1 (GPIO 33) | Let It Be — C G Am F | Ode to Joy |
+| Demo 2 (GPIO 18) | Smoke on the Water — E G A | Seven Nation Army |
 
-**Käynnistys:** paina demo-nappia — kappale alkaa soida automaattisesti.
-**Pysäytys:** paina sama nappi uudelleen tai paina toinen demo-nappi.
-**Huomio:** muut napit eivät toimi demon aikana. Tila, setti ja oktaavi vaikuttavat demon ääneen.
+**Käynnistys:** paina demo-nappia.
+**Pysäytys:** paina sama nappi uudelleen.
+**Vaihto:** paina toinen demo-nappi.
+**Huomio:** muut napit eivät toimi demon aikana.
 
 ---
 
@@ -141,7 +142,7 @@ Laite ladataan USB-C -kaapelilla kitaran sivussa olevasta portista.
 
 ## Vinkkejä soittamiseen
 
-**Pop-progressio G–C–D–Em:** Strum → Vihreä → Punainen → Keltainen. Satoja tunnettuja kappaleita.
+**Pop-progressio G–C–D–Em:** Strum → Vihreä → Punainen → Keltainen.
 
 **Useampi fretti yhtä aikaa:** pidä useampi pohjassa ja strumaa — kaikki soivat samanaikaisesti.
 
