@@ -1,0 +1,719 @@
+// =============================================================================
+// GUITAR HERO PS3 → ESP32C6 MOZZI SYNTETISAATTORI
+// MCP23017 I/O expander kaikille napeille
+// =============================================================================
+//
+// MCP23017 I/O EXPANDER — YLEISKUVAUS
+// -----------------------------------------------------------------------------
+// MCP23017 on I2C-väylällä toimiva 16-pinninen digitaalinen I/O-laajenin.
+// Se lisää 16 digitaalista I/O-pinniä kahdella tavalla käyttäen vain 2 johtoa
+// (SDA + SCL) isäntälaitteesta.
+//
+// Miksi tarvitaan?
+//   XIAO ESP32C6:ssa on vain 11 käyttökelpoista GPIO-pinniä, mutta
+//   tarvitsemme 15 digitaalista tuloa napeille. MCP23017 ratkaisee tämän.
+//
+// I2C-OSOITE:
+//   MCP23017:n osoite määräytyy A0, A1, A2 -pinnien kytkennällä:
+//   A0=GND, A1=GND, A2=GND → osoite 0x20  (tässä projektissa)
+//   A0=VCC, A1=GND, A2=GND → osoite 0x21
+//   Samaan I2C-väylään voidaan kytkeä jopa 8 MCP23017:aa eri osoitteilla.
+//
+// PORTIT:
+//   GPA (portti A): 8 pinniä — GPA0...GPA7  — fretit + strum + select
+//   GPB (portti B): 8 pinniä — GPB0...GPB7  — start + d-pad + demo + 1 vapaa
+//
+// SISÄINEN PULL-UP:
+//   MCP23017:ssa on sisäänrakennetut pull-up-vastukset jokaiselle pinnille.
+//   Ne otetaan käyttöön kirjoittamalla 0xFF rekistereihin GPPUA ja GPPUB.
+//   Tällöin painamaton nappi = HIGH (1), painettu nappi = LOW (0).
+//   Ulkoisia pull-up-vastuksia ei tarvita.
+//
+// KYTKENTÄ (MCP23017 → XIAO ESP32C6):
+// -----------------------------------------------------------------------------
+//
+//   MCP23017           XIAO ESP32C6
+//   ─────────────────────────────────
+//   VDD  (pin 9)  →   3.3V
+//   VSS  (pin 10) →   GND
+//   SDA  (pin 13) →   D4 (GPIO22)
+//   SCL  (pin 12) →   D5 (GPIO23)
+//   RESET(pin 18) →   3.3V  ← TÄRKEÄ! Kelluvana piiri ei käynnisty.
+//   A0   (pin 15) →   GND   ─┐
+//   A1   (pin 16) →   GND    ├─ I2C-osoite = 0x20
+//   A2   (pin 17) →   GND   ─┘
+//
+// NAPPIEN KYTKENTÄ MCP23017:lle:
+// -----------------------------------------------------------------------------
+//   Jokainen nappi kytketään MCP23017:n pinnin ja GND:n väliin.
+//   Sisäinen pull-up pitää pinnin HIGH-tilassa kun nappi on auki.
+//   Nappi painettuna vetää pinnin LOW → ohjelmassa tulkitaan painallukseksi.
+//
+//   MCP23017 pinni  │ Virtuaalinen nro │ Toiminto
+//   ────────────────┼──────────────────┼──────────────────
+//   GPA0 (pin 21)   │        0         │ VIHREÄ fret
+//   GPA1 (pin 22)   │        1         │ PUNAINEN fret
+//   GPA2 (pin 23)   │        2         │ KELTAINEN fret
+//   GPA3 (pin 24)   │        3         │ SININEN fret
+//   GPA4 (pin 25)   │        4         │ ORANSSI fret
+//   GPA5 (pin 26)   │        5         │ STRUM ylös
+//   GPA6 (pin 27)   │        6         │ STRUM alas
+//   GPA7 (pin 28)   │        7         │ SELECT
+//   GPB0 (pin 1)    │        8         │ START
+//   GPB1 (pin 2)    │        9         │ D-pad ylös
+//   GPB2 (pin 3)    │       10         │ D-pad alas
+//   GPB3 (pin 4)    │       11         │ D-pad vasen
+//   GPB4 (pin 5)    │       12         │ D-pad oikea
+//   GPB5 (pin 6)    │       13         │ DEMO 1
+//   GPB6 (pin 7)    │       14         │ DEMO 2
+//   GPB7 (pin 8)    │       15         │ (vapaa)
+//
+// WHAMMY-POTENTIOMETRI (ei MCP23017:lla):
+// -----------------------------------------------------------------------------
+//   MCP23017 on pelkästään digitaalinen — se ei tue analogista lukua (ADC).
+//   Whammy-potentiometri kytketään suoraan XIAO:n analogituloon:
+//   Whammy OUT → A0 (GPIO0) suoraan XIAO ESP32C6:ssa
+//
+// I2C-REKISTERIT (MCP23017, IOCON.BANK=0 oletus):
+// -----------------------------------------------------------------------------
+//   0x00 IODIRA  — Suunta portti A: 1=input, 0=output
+//   0x01 IODIRB  — Suunta portti B
+//   0x0C GPPUA   — Pull-up portti A: 1=pull-up käytössä
+//   0x0D GPPUB   — Pull-up portti B
+//   0x12 GPIOA   — Lue/kirjoita portti A
+//   0x13 GPIOB   — Lue/kirjoita portti B
+//
+// SUORITUSKYKY:
+// -----------------------------------------------------------------------------
+//   I2C on hitaampaa kuin suora GPIO-luku. Tämän vuoksi buttonTask lukee
+//   molemmat portit yhdellä mcpReadAll()-kutsulla per pollaussilmukka
+//   kahden erillisen lukuoperaation sijaan. Tämä puolittaa I2C-liikenteen.
+//   10ms pollausväli (BUTTON_POLL_MS) on riittävä nappivasteelle.
+//
+// =============================================================================
+
+// --- ÄÄNI ---
+#define AUDIO_SCALER        20
+#define CONTROL_RATE        128
+
+// ADSR
+#define ENV_ATTACK_MS         5
+#define ENV_DECAY_MS         80
+#define ENV_SUSTAIN_MS      150
+#define ENV_RELEASE_MS      400
+#define ENV_ATTACK_LEVEL    255
+#define ENV_DECAY_LEVEL     180
+
+#define OPEN_CHORD_TIMEOUT  2000
+
+// --- EFEKTIT ---
+#define DISTORTION_GAIN       6
+#define TREMOLO_RATE_HZ     4.0f
+#define VIBRATO_RATE_HZ     6.0f
+#define VIBRATO_DEPTH       0.015f
+#define RING_MOD_FREQ_HZ    110.0f
+
+// --- WHAMMY ---
+#define WHAMMY_MAX_BEND     0.05f
+
+// --- DEMO ---
+#define DEMO_CHORD_MS       600
+#define DEMO_NOTE_MS        300
+#define DEMO_GAP_MS          80
+
+// --- FREERTOS ---
+#define BUTTON_TASK_STACK   4096
+#define BUTTON_POLL_MS        10
+
+// =============================================================================
+// PINNIMÄÄRITYKSET
+// =============================================================================
+
+// I2S DAC (pysyy suoraan XIAO ESP32C6:ssa)
+#define MOZZI_AUDIO_MODE    MOZZI_OUTPUT_I2S_DAC
+#define MOZZI_I2S_PIN_BCK   19   // D8
+#define MOZZI_I2S_PIN_WS    20   // D9
+#define MOZZI_I2S_PIN_DATA  21   // D10
+
+// I2C MCP23017
+#define MCP_SDA             22   // D4
+#define MCP_SCL             23   // D5
+#define MCP_ADDR            0x20 // A0=A1=A2=GND
+
+// Whammy pysyy suoraan XIAO:ssa (MCP23017 ei tue ADC:tä)
+#define PIN_WHAMMY           0   // A0 (GPIO0)
+
+// MCP23017 pinnikartta — GPA = portti A (rekisteri 0), GPB = portti B (rekisteri 1)
+// Käytetään virtuaalisia pinneja: GPA0=0 ... GPA7=7, GPB0=8 ... GPB7=15
+#define MCP_GREEN            0   // GPA0
+#define MCP_RED              1   // GPA1
+#define MCP_YELLOW           2   // GPA2
+#define MCP_BLUE             3   // GPA3
+#define MCP_ORANGE           4   // GPA4
+#define MCP_STRUM_U          5   // GPA5
+#define MCP_STRUM_D          6   // GPA6
+#define MCP_SELECT           7   // GPA7
+#define MCP_START            8   // GPB0
+#define MCP_JOY_UP           9   // GPB1
+#define MCP_JOY_DOWN        10   // GPB2
+#define MCP_JOY_LEFT        11   // GPB3
+#define MCP_JOY_RIGHT       12   // GPB4
+#define MCP_DEMO1           13   // GPB5
+#define MCP_DEMO2           14   // GPB6
+// GPB7 = vapaa
+
+// =============================================================================
+// TAAJUUSTAULUKOT
+// =============================================================================
+
+#define NUM_SETS      3
+#define NUM_FRETS     5
+#define NUM_OCT       3
+#define NUM_FX        5
+#define NUM_OSC       18
+#define OPEN_OSC_BASE 15
+
+const float OPEN_CHORD[NUM_SETS][3] = {
+   { 196.00f, 246.94f, 293.66f },
+   { 164.81f, 207.65f, 246.94f },
+   { 130.81f, 164.81f, 196.00f },
+};
+
+const float CHORDS[NUM_SETS][NUM_FRETS][3] = {
+   {
+      { 130.81f, 164.81f, 196.00f },
+      { 146.83f, 185.00f, 220.00f },
+      { 164.81f, 196.00f, 246.94f },
+      { 220.00f, 261.63f, 329.63f },
+      { 174.61f, 220.00f, 261.63f },
+   },
+   {
+      { 110.00f, 138.59f, 164.81f },
+      { 123.47f, 155.56f, 185.00f },
+      { 138.59f, 164.81f, 207.65f },
+      { 185.00f, 220.00f, 277.18f },
+      { 146.83f, 185.00f, 220.00f },
+   },
+   {
+      { 174.61f, 220.00f, 261.63f },
+      { 196.00f, 246.94f, 293.66f },
+      { 220.00f, 261.63f, 329.63f },
+      { 146.83f, 174.61f, 220.00f },
+      { 116.54f, 146.83f, 174.61f },
+   },
+};
+
+const float NOTES[NUM_OCT][NUM_FRETS] = {
+   { 146.83f, 164.81f, 174.61f, 196.00f, 220.00f },
+   { 293.66f, 329.63f, 349.23f, 392.00f, 440.00f },
+   { 587.33f, 659.25f, 698.46f, 784.00f, 880.00f },
+};
+
+const float OPEN_NOTE[NUM_OCT] = { 130.81f, 261.63f, 523.25f };
+
+const char* SET_NAMES[NUM_SETS]  = { "Pop", "Rock", "Balladi" };
+const char* OCT_NAMES[NUM_OCT]   = { "Basso", "Normaali", "Melodia" };
+const char* FX_NAMES[NUM_FX]     = { "Clean", "Distortion", "Tremolo", "Vibrato", "Ring Mod" };
+
+// =============================================================================
+// DEMO-KAPPALEET (sama kuin alkuperäisessä)
+// =============================================================================
+
+const int D1_CHORDS[] = {
+    0, -1,  3,  4,   0, -1,  4,  4,
+    0, -1,  3,  4,   0, -1,  4,  4,
+    3,  4,  0, -1,   3,  4, -1, -1,
+    0, -1,  3,  4,   0, -1,  0,  0,
+};
+const int D1_CHORDS_N = 32;
+
+const float D1_NOTES[] = {
+   329.63f, 329.63f, 349.23f, 392.00f,
+   392.00f, 349.23f, 329.63f, 293.66f,
+   261.63f, 261.63f, 293.66f, 329.63f,
+   329.63f, 293.66f, 293.66f,
+   329.63f, 329.63f, 349.23f, 392.00f,
+   392.00f, 349.23f, 329.63f, 293.66f,
+   261.63f, 261.63f, 293.66f, 329.63f,
+   329.63f, 293.66f, 329.63f, 293.66f,
+   261.63f, 261.63f,
+};
+const int D1_NOTES_N = 32;
+
+const int D2_CHORDS[] = {
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+   -1,  2,  0,  -1,  2,  3,  0,  -1,  2,  0,   2, -1,
+};
+const int D2_CHORDS_N = 36;
+
+const float D2_NOTES[] = {
+   164.81f, 164.81f, 196.00f, 164.81f,
+   146.83f, 130.81f, 123.47f,
+   164.81f, 164.81f, 196.00f, 164.81f,
+   130.81f, 146.83f, 130.81f,
+   164.81f, 164.81f, 196.00f, 164.81f,
+   146.83f, 130.81f, 123.47f,
+   164.81f, 164.81f, 196.00f, 164.81f,
+   130.81f, 146.83f, 130.81f,
+   110.00f, 130.81f, 146.83f, 174.61f,
+   146.83f, 130.81f,
+   164.81f, 164.81f, 196.00f, 164.81f,
+   146.83f, 130.81f, 123.47f,
+   164.81f, 164.81f,
+};
+const int D2_NOTES_N = 40;
+
+#define DEMO_OFF  0
+#define DEMO_1    1
+#define DEMO_2    2
+
+// =============================================================================
+// KIRJASTOT
+// =============================================================================
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <WiFi.h>
+#include <MozziGuts.h>
+#include <Oscil.h>
+#include <ADSR.h>
+#include <tables/sin2048_int8.h>
+
+// =============================================================================
+// MCP23017 — kevyt ajuri ilman ulkoista kirjastoa
+// =============================================================================
+
+#define MCP_IODIRA   0x00
+#define MCP_IODIRB   0x01
+#define MCP_GPPUA    0x0C
+#define MCP_GPPUB    0x0D
+#define MCP_GPIOA    0x12
+#define MCP_GPIOB    0x13
+
+void mcpWrite(uint8_t reg, uint8_t val) {
+   Wire.beginTransmission(MCP_ADDR);
+   Wire.write(reg);
+   Wire.write(val);
+   Wire.endTransmission();
+}
+
+uint8_t mcpRead(uint8_t reg) {
+   Wire.beginTransmission(MCP_ADDR);
+   Wire.write(reg);
+   Wire.endTransmission();
+   Wire.requestFrom((uint8_t)MCP_ADDR, (uint8_t)1);
+   return Wire.read();
+}
+
+void mcpBegin() {
+   Wire.begin(MCP_SDA, MCP_SCL);
+   mcpWrite(MCP_IODIRA, 0xFF);  // Kaikki GPA = input
+   mcpWrite(MCP_IODIRB, 0xFF);  // Kaikki GPB = input
+   mcpWrite(MCP_GPPUA,  0xFF);  // Pull-up GPA
+   mcpWrite(MCP_GPPUB,  0xFF);  // Pull-up GPB
+}
+
+// Lue yksittäinen pinni (0–15). LOW = painettu (pull-up logiikka)
+bool mcpReadPin(uint8_t pin) {
+   uint8_t val = (pin < 8)
+      ? mcpRead(MCP_GPIOA)
+      : mcpRead(MCP_GPIOB);
+   return !((val >> (pin % 8)) & 0x01); // true = painettu
+}
+
+// Lue molemmat portit yhdellä I2C-transaktiolla (tehokkaampi buttonTask:ssa)
+struct McpState { uint8_t a; uint8_t b; };
+McpState mcpReadAll() {
+   return { mcpRead(MCP_GPIOA), mcpRead(MCP_GPIOB) };
+}
+bool mcpPin(McpState s, uint8_t pin) {
+   uint8_t val = (pin < 8) ? s.a : s.b;
+   return !((val >> (pin % 8)) & 0x01); // true = painettu
+}
+
+// =============================================================================
+// TILAMUUTTUJAT
+// =============================================================================
+
+volatile bool chordMode    = true;
+volatile int  currentSet   = 0;
+volatile int  currentOct   = 1;
+volatile int  currentFx    = 0;
+volatile bool doReset      = false;
+volatile int  demoMode     = DEMO_OFF;
+volatile bool demoChanged  = false;
+volatile bool muteOpenFlag = false;
+
+static unsigned long openChordStartMs = 0;
+static bool          openChordActive  = false;
+
+// =============================================================================
+// MOZZI-OBJEKTIT
+// =============================================================================
+
+Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc[NUM_OSC] = {
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+   Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>(SIN2048_DATA),
+};
+
+ADSR<CONTROL_RATE, AUDIO_RATE> env[NUM_OSC];
+Oscil<SIN2048_NUM_CELLS, CONTROL_RATE> lfo(SIN2048_DATA);
+Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   ringOsc(SIN2048_DATA);
+
+// =============================================================================
+// NAPPIEN TILA
+// =============================================================================
+
+const uint8_t FRET_PINS[NUM_FRETS] = {
+   MCP_GREEN, MCP_RED, MCP_YELLOW, MCP_BLUE, MCP_ORANGE
+};
+
+bool fretHeld[NUM_FRETS]  = {false};
+bool strumDLast    = false;
+bool strumULast    = false;
+bool selectLast    = false;
+bool startLast     = false;
+bool dpadUpLast    = false;
+bool dpadDownLast  = false;
+bool dpadLeftLast  = false;
+bool dpadRightLast = false;
+bool demo1Last     = false;
+bool demo2Last     = false;
+
+volatile bool triggerFlags[NUM_FRETS] = {false};
+volatile bool releaseFlags[NUM_FRETS] = {false};
+volatile bool triggerOpen = false;
+
+// =============================================================================
+// NAPPITEHTÄVÄ — Core 0
+// =============================================================================
+
+void buttonTask(void *pvParameters) {
+   while (true) {
+      McpState s = mcpReadAll();
+
+      bool cStrumD    = mcpPin(s, MCP_STRUM_D);
+      bool cStrumU    = mcpPin(s, MCP_STRUM_U);
+      bool cSelect    = mcpPin(s, MCP_SELECT);
+      bool cStart     = mcpPin(s, MCP_START);
+      bool cDpadUp    = mcpPin(s, MCP_JOY_UP);
+      bool cDpadDown  = mcpPin(s, MCP_JOY_DOWN);
+      bool cDpadLeft  = mcpPin(s, MCP_JOY_LEFT);
+      bool cDpadRight = mcpPin(s, MCP_JOY_RIGHT);
+      bool cDemo1     = mcpPin(s, MCP_DEMO1);
+      bool cDemo2     = mcpPin(s, MCP_DEMO2);
+
+      if (cDemo1 && !demo1Last) {
+         demoMode    = (demoMode == DEMO_1) ? DEMO_OFF : DEMO_1;
+         demoChanged = true;
+         Serial.println(demoMode == DEMO_1 ? "Demo 1 ON" : "Demo OFF");
+      }
+      if (cDemo2 && !demo2Last) {
+         demoMode    = (demoMode == DEMO_2) ? DEMO_OFF : DEMO_2;
+         demoChanged = true;
+         Serial.println(demoMode == DEMO_2 ? "Demo 2 ON" : "Demo OFF");
+      }
+      demo1Last = cDemo1;
+      demo2Last = cDemo2;
+
+      if (demoMode != DEMO_OFF) {
+         vTaskDelay(BUTTON_POLL_MS / portTICK_PERIOD_MS);
+         continue;
+      }
+
+      for (int i = 0; i < NUM_FRETS; i++) {
+         bool pressed = mcpPin(s, FRET_PINS[i]);
+         if (!pressed && fretHeld[i]) releaseFlags[i] = true;
+         fretHeld[i] = pressed;
+      }
+
+      bool strumEdge = (cStrumD && !strumDLast) || (cStrumU && !strumULast);
+      if (strumEdge) {
+         if (cStart) {
+            doReset = true;
+         } else {
+            bool any = false;
+            for (int i = 0; i < NUM_FRETS; i++) {
+               if (fretHeld[i]) { triggerFlags[i] = true; any = true; }
+            }
+            if (any) muteOpenFlag = true;
+            else     triggerOpen  = true;
+         }
+      }
+      strumDLast = cStrumD;
+      strumULast = cStrumU;
+
+      if (cSelect && !selectLast) {
+         chordMode = !chordMode;
+         Serial.println(chordMode ? "Tila: Sointutila" : "Tila: Nuottitila");
+      }
+      selectLast = cSelect;
+
+      if (cStart && !startLast && !cStrumD && !cStrumU) {
+         currentSet = (currentSet + 1) % NUM_SETS;
+         Serial.println("Setti: " + String(SET_NAMES[currentSet]));
+      }
+      startLast = cStart;
+
+      if (cDpadUp && !dpadUpLast && currentOct < NUM_OCT - 1) {
+         currentOct++;
+         Serial.println("Oktaavi: " + String(OCT_NAMES[currentOct]));
+      }
+      if (cDpadDown && !dpadDownLast && currentOct > 0) {
+         currentOct--;
+         Serial.println("Oktaavi: " + String(OCT_NAMES[currentOct]));
+      }
+      dpadUpLast   = cDpadUp;
+      dpadDownLast = cDpadDown;
+
+      if (cDpadLeft && !dpadLeftLast) {
+         currentFx = (currentFx + NUM_FX - 1) % NUM_FX;
+         Serial.println("Efekti: " + String(FX_NAMES[currentFx]));
+      }
+      if (cDpadRight && !dpadRightLast) {
+         currentFx = (currentFx + 1) % NUM_FX;
+         Serial.println("Efekti: " + String(FX_NAMES[currentFx]));
+      }
+      dpadLeftLast  = cDpadLeft;
+      dpadRightLast = cDpadRight;
+
+      vTaskDelay(BUTTON_POLL_MS / portTICK_PERIOD_MS);
+   }
+}
+
+// =============================================================================
+// ÄÄNEN OHJAUSFUNKTIOT
+// =============================================================================
+
+void triggerChord(int fret) {
+   if (fret == -1) {
+      for (int n = 0; n < 3; n++) {
+         osc[OPEN_OSC_BASE + n].setFreq(OPEN_CHORD[currentSet][n]);
+         env[OPEN_OSC_BASE + n].noteOn();
+      }
+      openChordActive  = true;
+      openChordStartMs = millis();
+   } else {
+      for (int n = 0; n < 3; n++) {
+         osc[fret * 3 + n].setFreq(CHORDS[currentSet][fret][n]);
+         env[fret * 3 + n].noteOn();
+      }
+   }
+}
+
+void releaseChord(int fret) {
+   if (fret == -1) {
+      for (int n = 0; n < 3; n++) env[OPEN_OSC_BASE + n].noteOff();
+      openChordActive = false;
+   } else {
+      for (int n = 0; n < 3; n++) env[fret * 3 + n].noteOff();
+   }
+}
+
+void triggerNote(int fret) {
+   osc[fret * 3].setFreq(NOTES[currentOct][fret]);
+   env[fret * 3].noteOn();
+}
+
+void releaseNote(int fret) { env[fret * 3].noteOff(); }
+
+void triggerFreq(float freq) {
+   osc[OPEN_OSC_BASE].setFreq(freq);
+   env[OPEN_OSC_BASE].noteOn();
+}
+
+void triggerOpenSound() {
+   if (chordMode) {
+      triggerChord(-1);
+   } else {
+      osc[OPEN_OSC_BASE].setFreq(OPEN_NOTE[currentOct]);
+      env[OPEN_OSC_BASE].noteOn();
+      openChordActive  = true;
+      openChordStartMs = millis();
+   }
+}
+
+void silenceAll() {
+   for (int i = 0; i < NUM_OSC; i++) env[i].noteOff();
+   openChordActive = false;
+}
+
+void resetAll() {
+   silenceAll();
+   for (int i = 0; i < NUM_FRETS; i++) {
+      triggerFlags[i] = false;
+      releaseFlags[i] = false;
+      fretHeld[i]     = false;
+   }
+   triggerOpen = false; muteOpenFlag = false;
+   demoMode = DEMO_OFF; demoChanged = false;
+   openChordActive = false; openChordStartMs = 0;
+   chordMode = true; currentSet = 0; currentOct = 1; currentFx = 0;
+   doReset = false;
+   lfo.setFreq(TREMOLO_RATE_HZ);
+   Serial.println("RESET — Sointutila / Pop / Normaali / Clean");
+}
+
+// =============================================================================
+// DEMOTILA
+// =============================================================================
+
+static int           demoStep   = 0;
+static unsigned long demoNextMs = 0;
+static bool          demoIsGap  = false;
+
+void updateDemo() {
+   if (demoChanged) {
+      silenceAll(); demoStep = 0;
+      demoNextMs = millis() + 200;
+      demoIsGap = false; demoChanged = false;
+      return;
+   }
+   if (demoMode == DEMO_OFF) return;
+   if (millis() < demoNextMs) return;
+
+   const int*   chords = nullptr; int chordsN = 0;
+   const float* notes  = nullptr; int notesN  = 0;
+   switch (demoMode) {
+      case DEMO_1: chords=D1_CHORDS; chordsN=D1_CHORDS_N; notes=D1_NOTES; notesN=D1_NOTES_N; break;
+      case DEMO_2: chords=D2_CHORDS; chordsN=D2_CHORDS_N; notes=D2_NOTES; notesN=D2_NOTES_N; break;
+      default: return;
+   }
+
+   if (chordMode) {
+      silenceAll();
+      triggerChord(chords[demoStep % chordsN]);
+      demoStep++;
+      demoNextMs = millis() + DEMO_CHORD_MS;
+   } else {
+      if (demoIsGap) {
+         demoIsGap = false;
+         triggerFreq(notes[demoStep % notesN]);
+         demoStep++;
+         demoNextMs = millis() + DEMO_NOTE_MS;
+      } else {
+         silenceAll();
+         demoIsGap  = true;
+         demoNextMs = millis() + DEMO_GAP_MS;
+      }
+   }
+}
+
+// =============================================================================
+// SETUP
+// =============================================================================
+
+void setup() {
+   Serial.begin(115200);
+   WiFi.mode(WIFI_OFF);
+   btStop();
+
+   mcpBegin();  // MCP23017 alustetaan — kaikki napit sisäisellä pull-upilla
+
+   for (int i = 0; i < NUM_OSC; i++) {
+      env[i].setADLevels(ENV_ATTACK_LEVEL, ENV_DECAY_LEVEL);
+      env[i].setTimes(ENV_ATTACK_MS, ENV_DECAY_MS, ENV_SUSTAIN_MS, ENV_RELEASE_MS);
+   }
+
+   lfo.setFreq(TREMOLO_RATE_HZ);
+   ringOsc.setFreq(RING_MOD_FREQ_HZ);
+
+   xTaskCreatePinnedToCore(
+      buttonTask, "ButtonTask", BUTTON_TASK_STACK, NULL, 1, NULL, 0
+   );
+
+   startMozzi(CONTROL_RATE);
+   Serial.println("Kaynnistetty — MCP23017 / Sointutila / Pop / Normaali / Clean");
+}
+
+// =============================================================================
+// MOZZI CONTROL LOOP
+// =============================================================================
+
+void updateControl() {
+   if (doReset) { resetAll(); return; }
+
+   if (demoMode != DEMO_OFF || demoChanged) {
+      updateDemo(); return;
+   }
+
+   if (muteOpenFlag) { releaseChord(-1); muteOpenFlag = false; }
+
+   if (openChordActive && millis() - openChordStartMs > OPEN_CHORD_TIMEOUT)
+      releaseChord(-1);
+
+   for (int i = 0; i < NUM_FRETS; i++) {
+      if (releaseFlags[i]) { chordMode ? releaseChord(i) : releaseNote(i); releaseFlags[i] = false; }
+   }
+   for (int i = 0; i < NUM_FRETS; i++) {
+      if (triggerFlags[i]) { chordMode ? triggerChord(i) : triggerNote(i); triggerFlags[i] = false; }
+   }
+   if (triggerOpen) { triggerOpenSound(); triggerOpen = false; }
+
+   float bend = (float)mozziAnalogRead(PIN_WHAMMY) / 4095.0f * WHAMMY_MAX_BEND;
+
+   float vibratoMod = 0.0f;
+   if (currentFx == 2) lfo.setFreq(TREMOLO_RATE_HZ);
+   else if (currentFx == 3) {
+      lfo.setFreq(VIBRATO_RATE_HZ);
+      vibratoMod = VIBRATO_DEPTH * ((float)lfo.next() / 128.0f);
+   }
+
+   for (int i = 0; i < NUM_FRETS; i++) {
+      for (int n = 0; n < 3; n++) {
+         int idx = i * 3 + n;
+         float base = chordMode ? CHORDS[currentSet][i][n] : (n == 0 ? NOTES[currentOct][i] : 0.0f);
+         if (base > 0.0f) osc[idx].setFreq(base * (1.0f + bend + vibratoMod));
+         env[idx].update();
+      }
+   }
+
+   for (int n = 0; n < 3; n++) {
+      if (openChordActive) {
+         float base = chordMode ? OPEN_CHORD[currentSet][n] : (n == 0 ? OPEN_NOTE[currentOct] : 0.0f);
+         if (base > 0.0f) osc[OPEN_OSC_BASE + n].setFreq(base * (1.0f + bend + vibratoMod));
+      }
+      env[OPEN_OSC_BASE + n].update();
+   }
+}
+
+// =============================================================================
+// MOZZI AUDIO LOOP
+// =============================================================================
+
+AudioOutput_t updateAudio() {
+   int32_t out = 0;
+   for (int i = 0; i < NUM_OSC; i++)
+      out += (int32_t)(env[i].next() * osc[i].next()) >> 8;
+   out /= AUDIO_SCALER;
+
+   switch (currentFx) {
+      case 1: out = constrain(out * DISTORTION_GAIN, -128, 127); break;
+      case 2: out = (int32_t)(out * (128 + lfo.next())) >> 8;    break;
+      case 4: out = (int32_t)(out * ringOsc.next()) >> 7;         break;
+      default: break;
+   }
+
+   return StereoOutput::fromNBit(8, out, out);
+}
+
+void loop() { audioHook(); }
