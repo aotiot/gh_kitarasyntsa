@@ -177,6 +177,7 @@
 
 // FreeRTOS
 #define BUTTON_TASK_STACK   4096  // buttonTask-pinon koko tavuina (4KB riittää hyvin)
+#define MOZZI_TASK_STACK    8192  // mozziTask-pinon koko (audioHook + efektilaskennat)
 #define BUTTON_POLL_MS        10  // Nappien pollausväli (ms). Alle 20ms = ihmiselle huomaamaton viive.
 
 // =============================================================================
@@ -741,10 +742,14 @@ void setup() {
    vibratoLfo.setFreq(VIBRATO_RATE_HZ);
    ringOsc.setFreq(RING_MOD_FREQ_HZ);
 
-   // Käynnistä nappitehtävä Core 0:lla, prioriteetti 1
-   // Mozzi käyttää Core 1:tä — tämä jako estää kilpailutilanteet
+   // Eksplisiittinen ydinpinnoitus: molemmat tehtävät sidotaan fyysiseen ytimeen
+   // eikä luoteta Arduino-kehyksen oletukseen (loop() → Core 1).
+   // Korjattu 2026-04-26 Claude Sonnet 4.6: lisätty mozziTask + MOZZI_TASK_STACK
    xTaskCreatePinnedToCore(
-      buttonTask, "ButtonTask", BUTTON_TASK_STACK, NULL, 1, NULL, 0
+      buttonTask, "ButtonTask", BUTTON_TASK_STACK, NULL, 1, NULL, 0  // Core 0, prio 1
+   );
+   xTaskCreatePinnedToCore(
+      mozziTask, "MozziTask", MOZZI_TASK_STACK, NULL, 2, NULL, 1     // Core 1, prio 2
    );
 
    startMozzi(CONTROL_RATE);
@@ -879,5 +884,13 @@ AudioOutput_t updateAudio() {
    return MonoOutput::from8Bit(out);
 }
 
-// Mozzi vaatii audioHook():n loop():ssa — älä lisää muuta koodia tänne
-void loop() { audioHook(); }
+// mozziTask pyörittää audioHook():a Core 1:llä — eksplisiittinen ydinpinnoitus.
+// Korjattu 2026-04-26 Claude Sonnet 4.6: audioHook() siirretty loop():sta omaan tehtävään.
+void mozziTask(void *pvParameters) {
+   while (true) {
+      audioHook();
+   }
+}
+
+// Arduino loop-tehtävä jää nukkumaan — ääni pyörii mozziTask:ssa Core 1:llä.
+void loop() { vTaskDelay(portMAX_DELAY); }
