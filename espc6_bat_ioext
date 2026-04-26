@@ -16,6 +16,12 @@
 //   Core 1 — Mozzi (updateControl + updateAudio): hoitaa äänisynteesin
 //   Kommunikointi corejen välillä: volatile flagit (triggerFlags, releaseFlags jne.)
 //
+// HUOM 2026-04-26 Claude Sonnet 4.6: XIAO ESP32C6 on käytännössä yksiytiminen
+//   (HP RISC-V core). xTaskCreatePinnedToCore ei erota buttonTask:ia Mozzista
+//   eri ytimille — molemmat ajetaan vuorotellen samalla ytimellä. I2C-lukeminen
+//   MCP23017:ltä (~180µs) voi aiheuttaa äänikatkoja (AUDIO_RATE vaatii CPU:n
+//   joka 61µs). ESP32 WROOM (koodi.ino) on suositeltavampi alusta tähän.
+//
 // LAITTEISTO:
 //   - Seeed Studio XIAO ESP32C6
 //   - MCP23017 I/O-laajenin (I2C, osoite 0x20)
@@ -180,7 +186,7 @@
 // ADSR-verhokäyrä
 #define ENV_ATTACK_MS         5
 #define ENV_DECAY_MS         80
-#define ENV_SUSTAIN_MS      150
+#define ENV_SUSTAIN_MS    60000  // Korjattu 2026-04-26 Claude Sonnet 4.6: 150→60000, pitää äänen soivana fretin ajan
 #define ENV_RELEASE_MS      400
 #define ENV_ATTACK_LEVEL    255   // 0–255
 #define ENV_DECAY_LEVEL     180   // 0–255, sustain-taso
@@ -385,7 +391,8 @@ const char* FX_NAMES[NUM_FX]    = { "Clean", "Distortion", "Tremolo", "Vibrato",
 // Sointunumero: -1 = avoin sointu, 0–4 = fretti-indeksi
 
 // --- Demo 1 sointutila: Let It Be ---
-// Pop-setti: C=fretti0(IV), G=avoin(-1,I), Am=fretti3(vi), F=fretti4(bVII)
+// Pop-setti: C=fretti0(IV), G=avoin(-1,I), Am=fretti3(ii), F=fretti4(bVII)
+// Korjattu 2026-04-26 Claude Sonnet 4.6: Am on ii (ei vi), vi=Em=fretti2
 // Rakenne: Verse×2 + Chorus + Outro = 32 sointua
 const int D1_CHORDS[] = {
    // Verse 1 & 2: C G Am F  C G F F
@@ -411,7 +418,7 @@ const float D1_NOTES[] = {
    329.63f, 293.66f, 329.63f, 293.66f,  // E4 D4 E4 D4 (variaatio)
    261.63f, 261.63f,                    // C4 C4 (lopetuskadenssi)
 };
-const int D1_NOTES_N = 32;
+const int D1_NOTES_N = 33;  // Korjattu 2026-04-26 Claude Sonnet 4.6: 32→33, taulukossa 33 alkiota
 
 // --- Demo 2 sointutila: Smoke on the Water ---
 // Rock-setti: E=avoin(-1), G=fretti2(vi), A=fretti0(IV), B=fretti1(V), D=fretti3(ii)
@@ -440,7 +447,7 @@ const float D2_NOTES[] = {
    146.83f, 130.81f, 123.47f,
    164.81f, 164.81f,                    // E3 E3 (lopetus)
 };
-const int D2_NOTES_N = 40;
+const int D2_NOTES_N = 43;  // Korjattu 2026-04-26 Claude Sonnet 4.6: 40→43, taulukossa 43 alkiota
 
 #define DEMO_OFF  0
 #define DEMO_1    1
@@ -491,8 +498,11 @@ Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc[NUM_OSC] = {
 };
 
 ADSR<CONTROL_RATE, AUDIO_RATE> env[NUM_OSC];  // Yksi ADSR per osillaattori
-Oscil<SIN2048_NUM_CELLS, CONTROL_RATE> lfo(SIN2048_DATA);      // Tremolo/Vibrato LFO
-Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   ringOsc(SIN2048_DATA);  // Ring Mod kantoaalto
+// Korjattu 2026-04-26 Claude Sonnet 4.6: jaettu kahdeksi LFO:ksi — yksi lfo CONTROL_RATE-kutsuissa
+// käynnisti tremolon 128× liian nopeana (512 Hz sirinä 4 Hz:n sijaan)
+Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   tremoloLfo(SIN2048_DATA); // LFO tremololle (updateAudio, AUDIO_RATE)
+Oscil<SIN2048_NUM_CELLS, CONTROL_RATE> vibratoLfo(SIN2048_DATA); // LFO vibratolle (updateControl, CONTROL_RATE)
+Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   ringOsc(SIN2048_DATA);    // Ring Mod kantoaalto
 
 // =============================================================================
 // NAPPIEN TILAMUUTTUJAT (Core 0)
@@ -726,7 +736,8 @@ void resetAll() {
    currentOct       = 1;
    currentFx        = 0;
    doReset          = false;
-   lfo.setFreq(TREMOLO_RATE_HZ);
+   tremoloLfo.setFreq(TREMOLO_RATE_HZ);
+   vibratoLfo.setFreq(VIBRATO_RATE_HZ);
    Serial.println("RESET — Sointutila / Pop / Normaali / Clean");
 }
 
@@ -749,7 +760,7 @@ void updateDemo() {
       return;
    }
    if (demoMode == DEMO_OFF) return;
-   if (millis() < demoNextMs) return;
+   if ((long)(millis() - demoNextMs) < 0) return;  // Korjattu 2026-04-26 Claude Sonnet 4.6: overflow-turvallinen vertailu
 
    const int*   chords  = nullptr; int chordsN = 0;
    const float* notes   = nullptr; int notesN  = 0;
@@ -800,7 +811,8 @@ void setup() {
       env[i].setTimes(ENV_ATTACK_MS, ENV_DECAY_MS, ENV_SUSTAIN_MS, ENV_RELEASE_MS);
    }
 
-   lfo.setFreq(TREMOLO_RATE_HZ);
+   tremoloLfo.setFreq(TREMOLO_RATE_HZ);
+   vibratoLfo.setFreq(VIBRATO_RATE_HZ);
    ringOsc.setFreq(RING_MOD_FREQ_HZ);
 
    // Käynnistä nappitehtävä Core 0:lla (prioriteetti 1, pino 4096 tavua)
@@ -818,6 +830,10 @@ void setup() {
 // =============================================================================
 
 void updateControl() {
+   // ADSR päivitetään aina — myös demo- ja reset-tiloissa, jotta verhokäyrät etenevät oikein
+   // Korjattu 2026-04-26 Claude Sonnet 4.6: aiemmin ohitettiin demo-tilassa → demo-nuotit hiljaisia
+   for (int i = 0; i < NUM_OSC; i++) env[i].update();
+
    // Nollaus ensin — muut toiminnot ohitetaan
    if (doReset) { resetAll(); return; }
 
@@ -866,11 +882,8 @@ void updateControl() {
 
    // LFO efektin mukaan: tremolo moduloi amplitudia, vibrato taajuutta
    float vibratoMod = 0.0f;
-   if (currentFx == 2) {
-      lfo.setFreq(TREMOLO_RATE_HZ);  // Tremolo käyttää LFO:ta updateAudio:ssa
-   } else if (currentFx == 3) {
-      lfo.setFreq(VIBRATO_RATE_HZ);
-      vibratoMod = VIBRATO_DEPTH * ((float)lfo.next() / 128.0f);  // −DEPTH...+DEPTH
+   if (currentFx == 3) {
+      vibratoMod = VIBRATO_DEPTH * ((float)vibratoLfo.next() / 128.0f);  // −DEPTH...+DEPTH
    }
 
    // Päivitä frettiosillaattorien taajuudet ja ADSR (osc[0..14])
@@ -883,11 +896,10 @@ void updateControl() {
             : (n == 0 ? NOTES[currentOct][i] : 0.0f);
          if (base > 0.0f)
             osc[idx].setFreq(base * (1.0f + bend + vibratoMod));
-         env[idx].update();
       }
    }
 
-   // Päivitä avoimen soinnun osillaattorit (osc[15..17])
+   // Päivitä avoimen soinnun osillaattorien taajuudet (osc[15..17])
    for (int n = 0; n < 3; n++) {
       if (openChordActive) {
          float base = chordMode
@@ -896,7 +908,6 @@ void updateControl() {
          if (base > 0.0f)
             osc[OPEN_OSC_BASE + n].setFreq(base * (1.0f + bend + vibratoMod));
       }
-      env[OPEN_OSC_BASE + n].update();
    }
 }
 
@@ -922,7 +933,7 @@ AudioOutput_t updateAudio() {
          out = constrain(out * DISTORTION_GAIN, -128, 127);
          break;
       case 2:  // Tremolo: amplitudin modulaatio LFO:lla (0–256 kerroin)
-         out = (int32_t)(out * (128 + lfo.next())) >> 8;
+         out = (int32_t)(out * (128 + tremoloLfo.next())) >> 8;
          break;
       case 3:  // Vibrato: taajuusmodulaatio hoidetaan updateControl:issa
          break;

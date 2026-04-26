@@ -298,17 +298,18 @@ const char* FX_NAMES[NUM_FX]    = { "Clean", "Distortion", "Tremolo", "Vibrato",
 // Sointunumerot: -1 = avoin sointu (I), 0–4 = fretti-indeksi (IV V vi ii bVII)
 
 // --- Let It Be — Pop-setti (G-duuri) ---
-// C=fretti0(IV), G=avoin(-1,I), Am=fretti2(vi), F=fretti4(bVII)
+// C=fretti0(IV), G=avoin(-1,I), Am=fretti3(ii), F=fretti4(bVII)
 // Rakenne: Verse×2 + Chorus + Outro = 32 sointua × 600ms ≈ 32s
+// Korjattu 2026-04-26 Claude Sonnet 4.6: Am oli virheellisesti fretti2 (=Em/vi), korjattu fretti3 (=Am/ii)
 const int D1_CHORDS[] = {
    // Verse 1:  C  G  Am F   C  G  F  F
-                0, -1,  2,  4,  0, -1,  4,  4,
+                0, -1,  3,  4,  0, -1,  4,  4,
    // Verse 2:  C  G  Am F   C  G  F  F
-                0, -1,  2,  4,  0, -1,  4,  4,
+                0, -1,  3,  4,  0, -1,  4,  4,
    // Chorus:   Am F  C  G   Am F  G  G
-                2,  4,  0, -1,  2,  4, -1, -1,
+                3,  4,  0, -1,  3,  4, -1, -1,
    // Outro:    C  G  Am F   C  G  C  C
-                0, -1,  2,  4,  0, -1,  0,  0,
+                0, -1,  3,  4,  0, -1,  0,  0,
 };
 const int D1_CHORDS_N = 32;
 

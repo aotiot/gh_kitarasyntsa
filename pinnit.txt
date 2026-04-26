@@ -12,7 +12,7 @@
  IO15  │ ●     ● │ IO22 ← SININEN fret
   IO2  │ ●     ● │ IO21 ← KELTAINEN fret
   IO4  │ ●     ● │ IO19 ← I2S DATA (Mozzi)
-  IO5  │ ●     ● │ IO18 ← DEMO 3
+  IO5  │ ●     ● │ IO18 ← DEMO 2
  IO16  │ ●     ● │ IO5  (D-pad alas)
  IO17  │ ●     ● │ IO17 (D-pad oikea)
  IO18  │ ●     ● │ IO16 (D-pad vasen)
@@ -21,7 +21,7 @@
  IO22  │ ●     ● │ IO15 ← SELECT
  IO23  │ ●     ● │ GND
  IO25  │ ●     ● │ IO13 ← START
- IO26  │ ●     ● │ IO12 ← DEMO 1
+ IO26  │ ●     ● │ IO12   (vapaa, vältä strapping)
        │         │ IO14 ← STRUM ylös
        │ vasen   │ IO27 ← PUNAINEN fret
        │ reuna   │ IO26 ← I2S BCK (Mozzi)
@@ -88,15 +88,18 @@ Kytkentä: `GPIO → nappi → GND` (INPUT_PULLUP)
 
 ## Ryhmä D — Demo-napit
 
-Kolme nappia kitaran rungossa.
+<!-- Korjattu 2026-04-26 Claude Sonnet 4.6: vanha versio listasi virheellisesti 3 nappia
+     (GPIO 12, 33, 18) ja GPIO 12 strapping-varoitus oli vaarallinen (HIGH at boot = 1.8V flash).
+     Oikea kytkentä: 2 nappia, GPIO 33 ja GPIO 18. -->
+
+Kaksi nappia kitaran rungossa. Molemmat normaaleja GPIO-pinnejä — sisäinen pull-up, ei ulkoisia vastuksia.
 
 | Nappi | GPIO | Kytkentä |
 |---|---|---|
-| Demo 1 | GPIO 12 | GPIO → nappi → GND |
-| Demo 2 | GPIO 33 | GPIO → nappi → GND |
-| Demo 3 | GPIO 18 | GPIO → nappi → GND |
+| Demo 1 | GPIO 33 | GPIO → nappi → GND |
+| Demo 2 | GPIO 18 | GPIO → nappi → GND |
 
-> GPIO 12 on strapping-pinni. INPUT_PULLUP pitää sen HIGH käynnistyksessä — nappikytkentä on turvallinen.
+Kytkentä: `GPIO → nappi → GND` (INPUT_PULLUP)
 
 ---
 
@@ -178,6 +181,7 @@ TP4056 OUT− → GND
 
 | GPIO | Huomio |
 |---|---|
+| GPIO 12 | Vapaa — strapping-pinni, pidä LOW käynnistyksessä (ei INPUT_PULLUP) |
 | GPIO 34, 35 | Vapaa — input-only, vaatisi ulkoisen pull-up |
 | GPIO 36, 39 | Vapaa — input-only, vaatisi ulkoisen pull-up |
 

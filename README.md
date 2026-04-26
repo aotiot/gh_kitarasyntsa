@@ -25,7 +25,7 @@ Tässä projektissa Guitar Hero 3 PS3 -kitaran alkuperäinen elektroniikka korva
 | Nuottitila | C-duuriasteikko: C D E F G A |
 | Oktaavit | Basso / Normaali / Melodia |
 | Efektit | Clean, Distortion, Tremolo, Vibrato, Ring Modulator |
-| Whammy bar | Portaaton pitch bend ±5% |
+| Whammy bar | Portaaton pitch bend 0–+5% (vain ylös) |
 | Demo-tila | 2 demo-nappia, eri kappale sointu- ja nuottitilassa |
 | Äänilähtö | PCM5102A I2S DAC → PAM8403 3W vahvistin |
 | Virta | 2× 18650 Li-ion, USB-C lataus, ~17 h käyttöaika |
@@ -115,11 +115,14 @@ Sama nappi soittaa aina saman harmonisen funktion — vain perusääni vaihtuu s
 
 ```
 gh_kitarasyntsa/
-├── gh_synth_final.ino   — Arduino-koodi (ESP32 + Mozzi)
-├── KAYTTO-OHJE.md       — Käyttöohje soittajalle
-├── KYTKENTA.md          — Pinnikytkentäohje rakentajalle
-└── README.md            — Tämä tiedosto
+├── koodi.ino          — Arduino-koodi, ESP32 WROOM (pääversio)
+├── espc6_bat_ioext    — Arduino-koodi, XIAO ESP32C6 + MCP23017 (kokeellinen)
+├── ohje.txt           — Käyttöohje soittajalle
+├── kytkenta.md        — Pinnikytkentäohje rakentajalle
+├── pinnit.txt         — Pinnilista rakentajalle
+└── README.md          — Tämä tiedosto
 ```
+<!-- Korjattu 2026-04-26 Claude Sonnet 4.6: väärät tiedostonimet korjattu -->
 
 ---
 
@@ -150,7 +153,7 @@ gh_kitarasyntsa/
 7. **Asenna virtakytkin** ja **USB-C portti** kitaran sivuun
 8. **Mittaa whammy-lepotila:** `Serial.println(mozziAnalogRead(34))` ja päivitä tarvittaessa
 
-Tarkemmat ohjeet: [KYTKENTA.md](KYTKENTA.md)
+Tarkemmat ohjeet: [kytkenta.md](kytkenta.md)
 
 ---
 
