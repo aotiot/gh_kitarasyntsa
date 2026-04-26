@@ -559,95 +559,152 @@ class InputHandler:
 
 # ── Tkinter-käyttöliittymä ────────────────────────────────────────────────────
 
+BG       = "#0e0e0e"   # Pääikkunan tausta
+SEC_BG   = "#181818"   # Osion tausta
+KEY_BG   = "#2e2e2e"   # Näppäinlaatikon tausta (lepotila)
+KEY_FG   = "#ffffff"   # Näppäinlaatikon teksti
+
+# Frettien värit: (painettu-tausta, painettu-teksti, lepotila-tausta, lepotila-teksti)
+FRET_THEME = [
+    ("#00ff55", "#000000", "#003311", "#00bb44"),   # Vihreä
+    ("#ff3333", "#ffffff", "#220000", "#cc2222"),   # Punainen
+    ("#ffee00", "#000000", "#221e00", "#ccbb00"),   # Keltainen
+    ("#22aaff", "#000000", "#001633", "#1166cc"),   # Sininen
+    ("#ff8800", "#000000", "#201000", "#cc6600"),   # Oranssi
+]
+
 class UI:
     def __init__(self, root, synth):
         self.root  = root
         self.synth = synth
         root.title("Guitar Hero Syntetisaattori — Python-emulaattori")
-        root.configure(bg="#1a1a1a")
+        root.configure(bg=BG)
         root.resizable(False, False)
 
-        pad = dict(padx=8, pady=4)
+        # ── Tila-palkki ──────────────────────────────────────────────────────
+        bar = tk.Frame(root, bg="#111111", pady=5)
+        bar.pack(fill="x")
 
-        # Tila-rivi
-        row0 = tk.Frame(root, bg="#1a1a1a"); row0.pack(fill="x", **pad)
-        self._lbl_mode = self._badge(row0, "Sointutila", "#2266cc")
-        self._lbl_set  = self._badge(row0, "Pop",        "#226622")
-        self._lbl_oct  = self._badge(row0, "Normaali",   "#664422")
-        self._lbl_fx   = self._badge(row0, "Clean",      "#442266")
+        self._lbl_mode = self._badge(bar, "SOINTUTILA", "#0077ff")
+        self._lbl_set  = self._badge(bar, "POP",        "#00cc33")
+        self._lbl_oct  = self._badge(bar, "NORMAALI",   "#ff7700")
+        self._lbl_fx   = self._badge(bar, "CLEAN",      "#bb22ff")
 
-        # Demo-rivi
-        row1 = tk.Frame(root, bg="#1a1a1a"); row1.pack(fill="x", **pad)
-        tk.Label(row1, text="Demo:", bg="#1a1a1a", fg="#888", font=("Consolas",10)).pack(side="left")
-        self._lbl_demo = tk.Label(row1, text="OFF", bg="#1a1a1a", fg="#888",
-                                  font=("Consolas",10,"bold"))
+        # Demo-indikaattori oikealle
+        df = tk.Frame(bar, bg="#111111"); df.pack(side="right", padx=10)
+        tk.Label(df, text="DEMO", bg="#111111", fg="#444",
+                 font=("Consolas", 8, "bold")).pack(side="left")
+        self._lbl_demo = tk.Label(df, text=" OFF ", bg="#222", fg="#555",
+                                  font=("Consolas", 10, "bold"), padx=6, pady=1)
         self._lbl_demo.pack(side="left", padx=4)
 
-        # Frettinappien LED:t
-        row2 = tk.Frame(root, bg="#1a1a1a"); row2.pack(fill="x", padx=8, pady=6)
+        # ── Frettinappien LED:t ───────────────────────────────────────────────
+        fret_sec = tk.Frame(root, bg=SEC_BG, pady=10)
+        fret_sec.pack(fill="x", padx=10, pady=(10, 4))
+
+        tk.Label(fret_sec, text="FRETIT", bg=SEC_BG, fg="#444",
+                 font=("Consolas", 8, "bold")).pack()
+
+        fret_row = tk.Frame(fret_sec, bg=SEC_BG)
+        fret_row.pack(pady=(6, 2))
+
         self._fret_leds = []
-        for i, (name, col) in enumerate(zip(FRET_NAMES, FRET_COLORS)):
-            f = tk.Frame(row2, bg="#1a1a1a")
-            f.pack(side="left", padx=4)
-            led = tk.Label(f, text="  ", bg="#333", width=2,
-                           relief="flat", bd=0)
+        for i, (key, name, theme) in enumerate(
+                zip(FRET_KEYS, FRET_NAMES, FRET_THEME)):
+            col_on_bg, col_on_fg, col_off_bg, col_off_fg = theme
+            cell = tk.Frame(fret_row, bg=SEC_BG)
+            cell.pack(side="left", padx=8)
+            led = tk.Label(cell, text=key.upper(), width=4, height=2,
+                           bg=col_off_bg, fg=col_off_fg,
+                           font=("Consolas", 18, "bold"), relief="flat")
             led.pack()
-            tk.Label(f, text=FRET_KEYS[i].upper(), bg="#1a1a1a", fg="#666",
-                     font=("Consolas", 9)).pack()
-            self._fret_leds.append((led, col))
+            tk.Label(cell, text=name, bg=SEC_BG, fg="#444",
+                     font=("Consolas", 8)).pack()
+            self._fret_leds.append((led, col_on_bg, col_on_fg, col_off_bg, col_off_fg))
 
-        # Whammy-indikaattori
-        row3 = tk.Frame(root, bg="#1a1a1a"); row3.pack(fill="x", **pad)
-        tk.Label(row3, text="Whammy [Z]:", bg="#1a1a1a", fg="#888",
-                 font=("Consolas",9)).pack(side="left")
-        self._lbl_whammy = tk.Label(row3, text="────", bg="#1a1a1a", fg="#444",
-                                    font=("Consolas",9))
-        self._lbl_whammy.pack(side="left", padx=4)
+        # ── Näppäimistökaavio ─────────────────────────────────────────────────
+        key_sec = tk.Frame(root, bg=SEC_BG)
+        key_sec.pack(fill="x", padx=10, pady=(4, 10))
 
-        # Ohjeet-teksti
-        help_txt = (
-            "A S D F G = Fretit  |  Väli/↑ = Strum  |  Tab = Sointu↔Nuotti\n"
-            "Enter = Setti  |  Enter+Väli = Reset  |  W/X = Oktaavi  |  Q/E = Efekti\n"
-            "Z = Whammy  |  1/2 = Demo  |  Esc = Lopeta"
-        )
-        tk.Label(root, text=help_txt, bg="#111", fg="#555",
-                 font=("Consolas", 9), justify="left",
-                 padx=8, pady=6).pack(fill="x")
+        tk.Label(key_sec, text="NÄPPÄIMET", bg=SEC_BG, fg="#444",
+                 font=("Consolas", 8, "bold")).pack(anchor="w", padx=6, pady=(6, 2))
+
+        # Rivi 1
+        r1 = tk.Frame(key_sec, bg=SEC_BG); r1.pack(fill="x", padx=6, pady=2)
+        self._grp(r1, "STRUM",        [("VÄLI", "alas"), ("↑", "ylös")])
+        self._div(r1)
+        self._grp(r1, "TILA",         [("TAB", "sointu ↔ nuotti")])
+        self._div(r1)
+        self._grp(r1, "SOINTUSETTI",  [("ENTER", "seuraava")])
+        self._div(r1)
+        self._grp(r1, "NOLLAA KAIKKI",[("ENTER + VÄLI", "reset")])
+
+        # Rivi 2
+        r2 = tk.Frame(key_sec, bg=SEC_BG); r2.pack(fill="x", padx=6, pady=(4, 8))
+        self._grp(r2, "OKTAAVI",      [("W", "ylös"), ("X", "alas")])
+        self._div(r2)
+        self._grp(r2, "EFEKTI",       [("Q", "edellinen"), ("E", "seuraava")])
+        self._div(r2)
+        self._grp(r2, "WHAMMY +5%",   [("Z", "pidä pohjassa")])
+        self._div(r2)
+        self._grp(r2, "DEMO",         [("1", "Demo 1"), ("2", "Demo 2")])
+        self._div(r2)
+        self._grp(r2, "LOPETA",       [("ESC", "")])
 
         self._poll()
 
     @staticmethod
     def _badge(parent, text, color):
-        lbl = tk.Label(parent, text=text, bg=color, fg="white",
-                       font=("Consolas", 10, "bold"), padx=6, pady=2,
-                       relief="flat")
-        lbl.pack(side="left", padx=3)
+        lbl = tk.Label(parent, text=text, bg=color, fg="#ffffff",
+                       font=("Consolas", 10, "bold"), padx=10, pady=3)
+        lbl.pack(side="left", padx=4, pady=4)
         return lbl
+
+    @staticmethod
+    def _div(parent):
+        tk.Frame(parent, bg="#333", width=1, height=40).pack(
+            side="left", padx=10, fill="y")
+
+    @staticmethod
+    def _grp(parent, label, keys):
+        """Näppäinryhmä: otsikko + yksi tai useampi key-box funktiolla."""
+        grp = tk.Frame(parent, bg=SEC_BG)
+        grp.pack(side="left", padx=2)
+        if label:
+            tk.Label(grp, text=label, bg=SEC_BG, fg="#555",
+                     font=("Consolas", 7, "bold")).pack(anchor="w")
+        row = tk.Frame(grp, bg=SEC_BG)
+        row.pack()
+        for key_txt, fn_txt in keys:
+            cell = tk.Frame(row, bg=SEC_BG)
+            cell.pack(side="left", padx=3)
+            w = max(3, len(key_txt) + 1)
+            tk.Label(cell, text=key_txt, bg=KEY_BG, fg=KEY_FG,
+                     font=("Consolas", 10, "bold"),
+                     width=w, pady=4, relief="raised", bd=2).pack()
+            tk.Label(cell, text=fn_txt, bg=SEC_BG, fg="#555",
+                     font=("Consolas", 7)).pack()
 
     def _poll(self):
         s = self.synth
 
-        self._lbl_mode.config(text="Sointutila" if s.chord_mode else "Nuottitila")
-        self._lbl_set.config(text=SET_NAMES[s.current_set])
-        self._lbl_oct.config(text=OCT_NAMES[s.current_oct])
-        self._lbl_fx.config(text=FX_NAMES[s.current_fx])
+        self._lbl_mode.config(text="SOINTUTILA" if s.chord_mode else "NUOTTITILA")
+        self._lbl_set.config( text=SET_NAMES[s.current_set].upper())
+        self._lbl_oct.config( text=OCT_NAMES[s.current_oct].upper())
+        self._lbl_fx.config(  text=FX_NAMES[s.current_fx].upper())
 
-        demo_txt = ["OFF", "Demo 1", "Demo 2"][s.demo_mode]
-        demo_col = "#888" if s.demo_mode == DEMO_OFF else "#ddaa00"
-        self._lbl_demo.config(text=demo_txt, fg=demo_col)
+        if s.demo_mode == DEMO_OFF:
+            self._lbl_demo.config(text=" OFF ", bg="#222", fg="#555")
+        else:
+            self._lbl_demo.config(
+                text=f" DEMO {s.demo_mode} ", bg="#996600", fg="#ffdd00")
 
-        for i, (led, col) in enumerate(self._fret_leds):
-            # Pohjassa = täysi väri, ei painettu = tumma
+        for i, (led, on_bg, on_fg, off_bg, off_fg) in enumerate(self._fret_leds):
             pressed = kb.is_pressed(FRET_KEYS[i]) and s.demo_mode == DEMO_OFF
-            led.config(bg=col if pressed else "#333")
+            led.config(bg=on_bg if pressed else off_bg,
+                       fg=on_fg if pressed else off_fg)
 
-        whammy_on = s.whammy > 0.5
-        self._lbl_whammy.config(
-            text="▓▓▓▓ +5%" if whammy_on else "────",
-            fg="#ff9900" if whammy_on else "#444"
-        )
-
-        self.root.after(50, self._poll)  # 20 Hz UI-päivitys
+        self.root.after(50, self._poll)
 
 
 # ── Pääohjelma ────────────────────────────────────────────────────────────────
