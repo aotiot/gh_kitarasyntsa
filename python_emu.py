@@ -559,18 +559,18 @@ class InputHandler:
 
 # ── Tkinter-käyttöliittymä ────────────────────────────────────────────────────
 
-BG       = "#0e0e0e"   # Pääikkunan tausta
-SEC_BG   = "#181818"   # Osion tausta
-KEY_BG   = "#2e2e2e"   # Näppäinlaatikon tausta (lepotila)
+BG       = "#1a1a1a"   # Pääikkunan tausta
+SEC_BG   = "#242424"   # Osion tausta
+KEY_BG   = "#444444"   # Näppäinlaatikon tausta (lepotila)
 KEY_FG   = "#ffffff"   # Näppäinlaatikon teksti
 
 # Frettien värit: (painettu-tausta, painettu-teksti, lepotila-tausta, lepotila-teksti)
 FRET_THEME = [
-    ("#00ff55", "#000000", "#003311", "#00bb44"),   # Vihreä
-    ("#ff3333", "#ffffff", "#220000", "#cc2222"),   # Punainen
-    ("#ffee00", "#000000", "#221e00", "#ccbb00"),   # Keltainen
-    ("#22aaff", "#000000", "#001633", "#1166cc"),   # Sininen
-    ("#ff8800", "#000000", "#201000", "#cc6600"),   # Oranssi
+    ("#00ff55", "#000000", "#005522", "#00ff55"),   # Vihreä
+    ("#ff3333", "#ffffff", "#660000", "#ff5555"),   # Punainen
+    ("#ffee00", "#000000", "#555200", "#ffee00"),   # Keltainen
+    ("#22aaff", "#000000", "#003366", "#44bbff"),   # Sininen
+    ("#ff8800", "#000000", "#553300", "#ff9922"),   # Oranssi
 ]
 
 class UI:
@@ -582,19 +582,19 @@ class UI:
         root.resizable(False, False)
 
         # ── Tila-palkki ──────────────────────────────────────────────────────
-        bar = tk.Frame(root, bg="#111111", pady=5)
+        bar = tk.Frame(root, bg="#2a2a2a", pady=5)
         bar.pack(fill="x")
 
-        self._lbl_mode = self._badge(bar, "SOINTUTILA", "#0077ff")
+        self._lbl_mode = self._badge(bar, "SOINTUTILA", "#0088ff")
         self._lbl_set  = self._badge(bar, "POP",        "#00cc33")
-        self._lbl_oct  = self._badge(bar, "NORMAALI",   "#ff7700")
-        self._lbl_fx   = self._badge(bar, "CLEAN",      "#bb22ff")
+        self._lbl_oct  = self._badge(bar, "NORMAALI",   "#ff8800")
+        self._lbl_fx   = self._badge(bar, "CLEAN",      "#cc44ff")
 
         # Demo-indikaattori oikealle
-        df = tk.Frame(bar, bg="#111111"); df.pack(side="right", padx=10)
-        tk.Label(df, text="DEMO", bg="#111111", fg="#444",
-                 font=("Consolas", 8, "bold")).pack(side="left")
-        self._lbl_demo = tk.Label(df, text=" OFF ", bg="#222", fg="#555",
+        df = tk.Frame(bar, bg="#2a2a2a"); df.pack(side="right", padx=10)
+        tk.Label(df, text="DEMO", bg="#2a2a2a", fg="#aaaaaa",
+                 font=("Consolas", 9, "bold")).pack(side="left")
+        self._lbl_demo = tk.Label(df, text=" OFF ", bg="#555555", fg="#ffffff",
                                   font=("Consolas", 10, "bold"), padx=6, pady=1)
         self._lbl_demo.pack(side="left", padx=4)
 
@@ -602,8 +602,8 @@ class UI:
         fret_sec = tk.Frame(root, bg=SEC_BG, pady=10)
         fret_sec.pack(fill="x", padx=10, pady=(10, 4))
 
-        tk.Label(fret_sec, text="FRETIT", bg=SEC_BG, fg="#444",
-                 font=("Consolas", 8, "bold")).pack()
+        tk.Label(fret_sec, text="FRETIT", bg=SEC_BG, fg="#ffffff",
+                 font=("Consolas", 9, "bold")).pack()
 
         fret_row = tk.Frame(fret_sec, bg=SEC_BG)
         fret_row.pack(pady=(6, 2))
@@ -618,16 +618,16 @@ class UI:
                            bg=col_off_bg, fg=col_off_fg,
                            font=("Consolas", 18, "bold"), relief="flat")
             led.pack()
-            tk.Label(cell, text=name, bg=SEC_BG, fg="#444",
-                     font=("Consolas", 8)).pack()
+            tk.Label(cell, text=name, bg=SEC_BG, fg="#cccccc",
+                     font=("Consolas", 9)).pack()
             self._fret_leds.append((led, col_on_bg, col_on_fg, col_off_bg, col_off_fg))
 
         # ── Näppäimistökaavio ─────────────────────────────────────────────────
         key_sec = tk.Frame(root, bg=SEC_BG)
         key_sec.pack(fill="x", padx=10, pady=(4, 10))
 
-        tk.Label(key_sec, text="NÄPPÄIMET", bg=SEC_BG, fg="#444",
-                 font=("Consolas", 8, "bold")).pack(anchor="w", padx=6, pady=(6, 2))
+        tk.Label(key_sec, text="NÄPPÄIMET", bg=SEC_BG, fg="#ffffff",
+                 font=("Consolas", 9, "bold")).pack(anchor="w", padx=6, pady=(6, 2))
 
         # Rivi 1
         r1 = tk.Frame(key_sec, bg=SEC_BG); r1.pack(fill="x", padx=6, pady=2)
@@ -662,7 +662,7 @@ class UI:
 
     @staticmethod
     def _div(parent):
-        tk.Frame(parent, bg="#333", width=1, height=40).pack(
+        tk.Frame(parent, bg="#666666", width=1, height=40).pack(
             side="left", padx=10, fill="y")
 
     @staticmethod
@@ -671,8 +671,8 @@ class UI:
         grp = tk.Frame(parent, bg=SEC_BG)
         grp.pack(side="left", padx=2)
         if label:
-            tk.Label(grp, text=label, bg=SEC_BG, fg="#555",
-                     font=("Consolas", 7, "bold")).pack(anchor="w")
+            tk.Label(grp, text=label, bg=SEC_BG, fg="#ffcc00",
+                     font=("Consolas", 8, "bold")).pack(anchor="w")
         row = tk.Frame(grp, bg=SEC_BG)
         row.pack()
         for key_txt, fn_txt in keys:
@@ -680,10 +680,10 @@ class UI:
             cell.pack(side="left", padx=3)
             w = max(3, len(key_txt) + 1)
             tk.Label(cell, text=key_txt, bg=KEY_BG, fg=KEY_FG,
-                     font=("Consolas", 10, "bold"),
+                     font=("Consolas", 11, "bold"),
                      width=w, pady=4, relief="raised", bd=2).pack()
-            tk.Label(cell, text=fn_txt, bg=SEC_BG, fg="#555",
-                     font=("Consolas", 7)).pack()
+            tk.Label(cell, text=fn_txt, bg=SEC_BG, fg="#aaaaaa",
+                     font=("Consolas", 8)).pack()
 
     def _poll(self):
         s = self.synth
@@ -694,10 +694,10 @@ class UI:
         self._lbl_fx.config(  text=FX_NAMES[s.current_fx].upper())
 
         if s.demo_mode == DEMO_OFF:
-            self._lbl_demo.config(text=" OFF ", bg="#222", fg="#555")
+            self._lbl_demo.config(text=" OFF ", bg="#555555", fg="#ffffff")
         else:
             self._lbl_demo.config(
-                text=f" DEMO {s.demo_mode} ", bg="#996600", fg="#ffdd00")
+                text=f" DEMO {s.demo_mode} ", bg="#dd8800", fg="#ffffff")
 
         for i, (led, on_bg, on_fg, off_bg, off_fg) in enumerate(self._fret_leds):
             pressed = kb.is_pressed(FRET_KEYS[i]) and s.demo_mode == DEMO_OFF
