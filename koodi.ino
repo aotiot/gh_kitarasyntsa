@@ -153,7 +153,7 @@
 // ADSR-verhokäyrä — kaikille osillaattoreille sama
 #define ENV_ATTACK_MS         5   // Nousuaika (ms)
 #define ENV_DECAY_MS         80   // Laskuaika attack-huipusta sustain-tasolle (ms)
-#define ENV_SUSTAIN_MS      150   // Maksimi sustain-aika (ms) — käytännössä fretti rajoittaa
+#define ENV_SUSTAIN_MS    60000   // Sustain-aika (ms) — suuri arvo pitää äänen soivana fretin ajan
 #define ENV_RELEASE_MS      400   // Sammumisaika noteOff():n jälkeen (ms)
 #define ENV_ATTACK_LEVEL    255   // Attack-huipputaso (0–255)
 #define ENV_DECAY_LEVEL     180   // Sustain-taso (0–255)
@@ -668,7 +668,7 @@ void updateDemo() {
       return;
    }
    if (demoMode == DEMO_OFF) return;
-   if (millis() < demoNextMs)  return;  // Ei vielä aika
+   if ((long)(millis() - demoNextMs) < 0) return;  // Ei vielä aika (overflow-turvallinen)
 
    const int*   chords = nullptr; int chordsN = 0;
    const float* notes  = nullptr; int notesN  = 0;
@@ -756,6 +756,9 @@ void setup() {
 // =============================================================================
 
 void updateControl() {
+   // ADSR päivitetään aina — myös demo- ja reset-tiloissa, jotta verhokäyrät etenevät oikein
+   for (int i = 0; i < NUM_OSC; i++) env[i].update();
+
    // Nollaus ensin — kaikki muu ohitetaan tällä kierroksella
    if (doReset) { resetAll(); return; }
 
@@ -822,11 +825,10 @@ void updateControl() {
             : (n == 0 ? NOTES[currentOct][i] : 0.0f);
          if (base > 0.0f)
             osc[idx].setFreq(base * (1.0f + bend + vibratoMod));
-         env[idx].update();  // ADSR täytyy päivittää joka kierroksella
       }
    }
 
-   // Päivitä avoimen soinnun osillaattorit (osc[15..17])
+   // Päivitä avoimen soinnun osillaattorien taajuudet (osc[15..17])
    for (int n = 0; n < 3; n++) {
       if (openChordActive) {
          float base = chordMode
@@ -835,7 +837,6 @@ void updateControl() {
          if (base > 0.0f)
             osc[OPEN_OSC_BASE + n].setFreq(base * (1.0f + bend + vibratoMod));
       }
-      env[OPEN_OSC_BASE + n].update();
    }
 }
 
