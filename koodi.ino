@@ -326,7 +326,7 @@ const float D1_NOTES[] = {
    329.63f, 293.66f, 329.63f, 293.66f,  // E4 D4 E4 D4 (variaatio)
    261.63f, 261.63f,                    // C4 C4 (lopetuskadenssi)
 };
-const int D1_NOTES_N = 32;
+const int D1_NOTES_N = 33;
 
 // --- Smoke on the Water — Rock-setti (E-duuri) ---
 // E=avoin(-1,I), G=fretti2(vi), A=fretti0(IV), B=fretti1(V)
@@ -352,7 +352,7 @@ const float D2_NOTES[] = {
    164.81f, 164.81f, 196.00f, 164.81f, 146.83f, 130.81f, 123.47f,
    164.81f, 164.81f,                                                 // E3 E3 (lopetus)
 };
-const int D2_NOTES_N = 40;
+const int D2_NOTES_N = 43;
 
 #define DEMO_OFF  0
 #define DEMO_1    1
@@ -406,7 +406,8 @@ Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc[NUM_OSC] = {
 };
 
 ADSR<CONTROL_RATE, AUDIO_RATE> env[NUM_OSC];            // Yksi ADSR-verhokäyrä per osillaattori
-Oscil<SIN2048_NUM_CELLS, CONTROL_RATE> lfo(SIN2048_DATA);     // LFO tremololle ja vibratolle
+Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   tremoloLfo(SIN2048_DATA); // LFO tremololle (updateAudio, AUDIO_RATE)
+Oscil<SIN2048_NUM_CELLS, CONTROL_RATE> vibratoLfo(SIN2048_DATA); // LFO vibratolle (updateControl, CONTROL_RATE)
 Oscil<SIN2048_NUM_CELLS, AUDIO_RATE>   ringOsc(SIN2048_DATA); // Ring Mod -kantoaalto (110 Hz)
 
 // =============================================================================
@@ -643,7 +644,8 @@ void resetAll() {
    currentOct       = 1;
    currentFx        = 0;
    doReset          = false;
-   lfo.setFreq(TREMOLO_RATE_HZ);
+   tremoloLfo.setFreq(TREMOLO_RATE_HZ);
+   vibratoLfo.setFreq(VIBRATO_RATE_HZ);
    Serial.println("RESET — Sointutila / Pop / Normaali / Clean");
 }
 
@@ -734,7 +736,8 @@ void setup() {
       env[i].setTimes(ENV_ATTACK_MS, ENV_DECAY_MS, ENV_SUSTAIN_MS, ENV_RELEASE_MS);
    }
 
-   lfo.setFreq(TREMOLO_RATE_HZ);
+   tremoloLfo.setFreq(TREMOLO_RATE_HZ);
+   vibratoLfo.setFreq(VIBRATO_RATE_HZ);
    ringOsc.setFreq(RING_MOD_FREQ_HZ);
 
    // Käynnistä nappitehtävä Core 0:lla, prioriteetti 1
@@ -803,12 +806,9 @@ void updateControl() {
    // LFO: tremolo moduloi amplitudia updateAudio():ssa,
    //       vibrato moduloi taajuutta tässä vibratoMod-muuttujan kautta
    float vibratoMod = 0.0f;
-   if (currentFx == 2) {
-      lfo.setFreq(TREMOLO_RATE_HZ);
-   } else if (currentFx == 3) {
-      lfo.setFreq(VIBRATO_RATE_HZ);
-      // lfo.next() palauttaa -128…127 → normalisoidaan -1…1 → kerrotaan syvyydellä
-      vibratoMod = VIBRATO_DEPTH * ((float)lfo.next() / 128.0f);
+   if (currentFx == 3) {
+      // vibratoLfo.next() palauttaa -128…127 → normalisoidaan -1…1 → kerrotaan syvyydellä
+      vibratoMod = VIBRATO_DEPTH * ((float)vibratoLfo.next() / 128.0f);
    }
 
    // Päivitä frettiosillaattorien taajuudet ja ADSR (osc[0..14])
@@ -862,7 +862,7 @@ AudioOutput_t updateAudio() {
          break;
       case 2:  // Tremolo: amplitudin modulaatio LFO:lla
          // lfo.next() → -128…127, lisätään 128 → 0…255, kerrotaan ja jaetaan 256:lla
-         out = (int32_t)(out * (128 + lfo.next())) >> 8;
+         out = (int32_t)(out * (128 + tremoloLfo.next())) >> 8;
          break;
       case 3:  // Vibrato: taajuusmodulaatio hoidetaan updateControl():ssa
          break;
